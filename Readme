@@ -1,0 +1,155 @@
+🏨 Hostel Complaint Management System (Backend)
+
+A role-based complaint management backend system built using Spring Boot, JWT Authentication, MySQL, and JPA.
+Designed to handle complaint lifecycle management within a hostel environment with strict role-based access control.
+
+🚀 Features
+🔐 Authentication & Authorization
+
+JWT-based authentication
+
+Role-based access control (RBAC)
+
+Secure endpoints using Spring Security
+
+👥 Supported Roles
+
+STUDENT
+
+WORKER
+
+CARETAKER
+
+WARDEN
+
+MESS_CONVENOR
+
+📝 Complaint Lifecycle
+
+A complaint follows this structured flow:
+
+CREATED → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED / REJECTED
+
+Students create complaints
+
+Caretaker/Warden assigns worker
+
+Worker updates progress & uploads proof
+
+Student closes complaint after resolution
+
+📊 Core Functionalities
+
+Create complaint (Student only)
+
+Assign worker (Caretaker/Warden only)
+
+Update complaint status (Worker only)
+
+Close complaint (Student only)
+
+Paginated complaint listing
+
+Status-based filtering
+
+Role-based data visibility
+
+Dashboard analytics (counts by status)
+
+Notification system
+
+🏗️ Tech Stack
+
+Java 17+
+
+Spring Boot
+
+Spring Security
+
+JWT (io.jsonwebtoken)
+
+Spring Data JPA (Hibernate)
+
+MySQL
+
+Maven
+
+Lombok
+
+📂 Project Architecture
+Controller → Service → Repository → Database
+
+Controller Layer – Handles REST APIs
+
+Service Layer – Business logic & role validation
+
+Repository Layer – Database interaction using JPA
+
+Entity Layer – Mapped relational models
+
+DTO Layer – Clean request/response separation
+
+Security Layer – JWT filter + SecurityConfig
+
+🗄️ Database Design Highlights
+User Entity
+
+Unique email
+
+Role-based fields
+
+Scholar number unique for students
+
+Many-to-One relationship with complaints
+
+Complaint Entity
+
+Many-to-One: Student
+
+Many-to-One: Assigned Worker
+
+Enum-based status, category & priority
+
+Auto-managed timestamps
+
+ API Endpoints
+
+Authentication
+Method	Endpoint	Description
+POST	/api/auth/register	Register new user
+POST	/api/auth/login	Login & receive JWT
+
+Complaint APIs
+Method	Endpoint	Access
+POST	/api/complaints	STUDENT
+PUT	/api/complaints/{id}/assign	CARETAKER / WARDEN
+PUT	/api/complaints/{id}/status	WORKER
+PUT	/api/complaints/{id}/close	STUDENT
+GET	/api/complaints	Role-based
+GET	/api/complaints/dashboard	CARETAKER / WARDEN
+
+Security Implementation
+
+Stateless authentication
+
+Custom JWT filter
+
+Bearer token validation
+
+Role extraction from token
+
+Method-level security restrictions
+
+Endpoint-based access control
+
+Role-Based Logic Examples
+
+Only STUDENT can create complaints
+
+Only CARETAKER/WARDEN can assign workers
+
+Only assigned WORKER can update status
+
+Only complaint owner (STUDENT) can close complaint
+
+Complaint must be RESOLVED before closing
