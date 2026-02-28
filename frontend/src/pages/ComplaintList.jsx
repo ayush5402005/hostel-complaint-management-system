@@ -24,12 +24,13 @@ const priorityColors = {
 const ComplaintList = () => {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  const [workerIdInput, setWorkerIdInput] = useState({});
+  const [selectedWorker, setSelectedWorker] = useState({});
 
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
@@ -46,11 +47,20 @@ const ComplaintList = () => {
     }
   }, [page, statusFilter]);
 
+  // Fetch workers list for warden/caretaker
+  useEffect(() => {
+    if (['CARETAKER', 'WARDEN'].includes(user.role)) {
+      api.get('/users/workers')
+        .then(res => setWorkers(res.data))
+        .catch(err => console.error(err));
+    }
+  }, [user.role]);
+
   useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
 
   const handleAssign = async (complaintId) => {
-    const workerId = workerIdInput[complaintId];
-    if (!workerId) return alert('Enter Worker ID first');
+    const workerId = selectedWorker[complaintId];
+    if (!workerId) return alert('Please select a worker first');
     setActionLoading(complaintId);
     try {
       await api.put(`/complaints/${complaintId}/assign`, { workerId: Number(workerId) });
@@ -123,8 +133,8 @@ const ComplaintList = () => {
           <div className="space-y-3">
             {complaints.map(c => (
               <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-800">#{c.id} — {c.title}</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[c.status]}`}>
@@ -139,28 +149,47 @@ const ComplaintList = () => {
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
                       By: {c.student?.name} · Block {c.student?.hostelBlock} / Room {c.student?.roomNumber}
-                      {c.assignedWorker && ` · Worker: ${c.assignedWorker.name}`}
+                      {c.assignedWorker && (
+                        <span className="text-blue-500"> · Worker: {c.assignedWorker.name}</span>
+                      )}
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-2 min-w-max">
+                  {/* ACTION BUTTONS */}
+                  <div className="flex flex-col gap-2">
+
+                    {/* WARDEN/CARETAKER — Assign Worker Dropdown */}
                     {['CARETAKER', 'WARDEN'].includes(user.role) && c.status === 'CREATED' && (
-                      <div className="flex gap-2">
-                        <input
-                          type="number" placeholder="Worker ID"
-                          value={workerIdInput[c.id] || ''}
-                          onChange={e => setWorkerIdInput({ ...workerIdInput, [c.id]: e.target.value })}
-                          className="w-24 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <button onClick={() => handleAssign(c.id)}
-                          disabled={actionLoading === c.id}
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                        >
-                          {actionLoading === c.id ? '...' : 'Assign'}
-                        </button>
+                      <div className="flex gap-2 items-center">
+                        {workers.length === 0 ? (
+                          <span className="text-xs text-red-500">No workers registered yet</span>
+                        ) : (
+                          <>
+                            <select
+                              value={selectedWorker[c.id] || ''}
+                              onChange={e => setSelectedWorker({ ...selectedWorker, [c.id]: e.target.value })}
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="">Select Worker</option>
+                              {workers.map(w => (
+                                <option key={w.id} value={w.id}>
+                                  {w.name} {w.department ? `(${w.department})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => handleAssign(c.id)}
+                              disabled={actionLoading === c.id}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                            >
+                              {actionLoading === c.id ? '...' : 'Assign'}
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
 
+                    {/* WORKER — Start Work */}
                     {user.role === 'WORKER' && c.status === 'ASSIGNED' && (
                       <button onClick={() => handleStatusUpdate(c.id, 'IN_PROGRESS')}
                         disabled={actionLoading === c.id}
@@ -170,6 +199,7 @@ const ComplaintList = () => {
                       </button>
                     )}
 
+                    {/* WORKER — Mark Resolved */}
                     {user.role === 'WORKER' && c.status === 'IN_PROGRESS' && (
                       <button onClick={() => handleStatusUpdate(c.id, 'RESOLVED')}
                         disabled={actionLoading === c.id}
@@ -179,6 +209,7 @@ const ComplaintList = () => {
                       </button>
                     )}
 
+                    {/* STUDENT — Close Complaint */}
                     {user.role === 'STUDENT' && c.status === 'RESOLVED' && (
                       <button onClick={() => handleClose(c.id)}
                         disabled={actionLoading === c.id}
