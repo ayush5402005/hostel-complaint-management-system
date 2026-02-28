@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import ComplaintForm from './pages/ComplaintForm';
 import ComplaintList from './pages/ComplaintList';
 import Notifications from './pages/Notifications';
+import ComplaintDetail from './pages/ComplaintDetail';
 
 function App() {
   return (
@@ -31,6 +32,10 @@ function App() {
           } />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/complaints/:id" element={
+  <ProtectedRoute><ComplaintDetail /></ProtectedRoute>
+} />
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>

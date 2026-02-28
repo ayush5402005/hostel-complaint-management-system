@@ -68,4 +68,11 @@ public class ComplaintController {
         return ResponseEntity.ok(
                 complaintService.getDashboardStats(authentication.getName()));
     }
+    @GetMapping("/{id}")
+public ResponseEntity<ComplaintResponse> getComplaintById(
+        @PathVariable Long id,
+        Authentication authentication) {
+    return ResponseEntity.ok(complaintService.getComplaintById(id, authentication.getName()));
+}
+
 }

@@ -175,4 +175,17 @@ public class ComplaintService {
                 complaintRepository.countByStatus(ComplaintStatus.REJECTED)
         );
     }
+    @Transactional(readOnly = true)
+public ComplaintResponse getComplaintById(Long id, String email) {
+    User user = getUser(email);
+    Complaint complaint = getComplaint(id);
+
+    // Students can only see their own complaints
+    if (user.getRole() == Role.STUDENT &&
+            !complaint.getStudent().getId().equals(user.getId())) {
+        throw new UnauthorizedException("Access denied");
+    }
+    return toResponse(complaint);
+}
+
 }

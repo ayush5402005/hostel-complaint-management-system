@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate} from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
@@ -31,6 +31,8 @@ const ComplaintList = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedWorker, setSelectedWorker] = useState({});
+  const navigate = useNavigate();
+
 
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
@@ -151,7 +153,9 @@ const ComplaintList = () => {
         ) : (
           <div className="space-y-3">
             {complaints.map(c => (
-              <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition">
+              <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition cursor-pointer"
+  onClick={() => navigate(`/complaints/${c.id}`)}>
+
                 <div className="flex items-start justify-between gap-4 flex-wrap">
 
                   {/* Left — Complaint Info */}
