@@ -26,16 +26,20 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            .cors(cors -> {}) // ✅ Enable CORS
+            .cors(cors -> {})
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
-                // ✅ Swagger UI access
+                // ✅ Allow uploaded images without auth
+                .requestMatchers("/uploads/**").permitAll()
+                // Swagger UI
                 .requestMatchers("/v3/api-docs/**").permitAll()
                 .requestMatchers("/swagger-ui/**").permitAll()
                 .requestMatchers("/swagger-ui.html").permitAll()
+                // Everything else needs auth
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter,
