@@ -24,7 +24,6 @@ public class NotificationService {
         this.userRepository = userRepository;
     }
 
-    // Called internally from ComplaintService
     public void sendNotification(User user, String message, String type) {
         Notification notification = Notification.builder()
                 .user(user)

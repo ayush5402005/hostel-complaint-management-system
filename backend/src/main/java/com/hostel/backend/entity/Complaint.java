@@ -10,6 +10,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "complaints")
@@ -49,7 +50,10 @@ public class Complaint {
     @Column(length = 500)
     private String resolvedPhotoUrl;
 
-    // FIXED: JsonIgnoreProperties prevents LazyInitializationException
+    // ✅ NEW — rejection reason field
+    @Column(length = 500)
+    private String rejectionReason;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
@@ -59,6 +63,11 @@ public class Complaint {
     @JoinColumn(name = "worker_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User assignedWorker;
+
+    // ✅ NEW — comments relationship
+    @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private List<ComplaintComment> comments;
 
     @CreationTimestamp
     @Column(updatable = false)

@@ -23,6 +23,8 @@ public class ComplaintResponse {
     private ComplaintStatus status;
     private String issuePhotoUrl;
     private String resolvedPhotoUrl;
+    // ✅ NEW — rejection reason shown to student
+    private String rejectionReason;
     private UserSummaryDTO student;
     private UserSummaryDTO assignedWorker;
     private LocalDateTime createdAt;

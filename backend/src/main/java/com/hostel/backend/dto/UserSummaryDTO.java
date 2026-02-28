@@ -19,4 +19,6 @@ public class UserSummaryDTO {
     private String hostelBlock;
     private String roomNumber;
     private String department;
+    // ✅ NEW — for student profile display
+    private String scholarNumber;
 }

@@ -8,37 +8,50 @@ import ComplaintForm from './pages/ComplaintForm';
 import ComplaintList from './pages/ComplaintList';
 import Notifications from './pages/Notifications';
 import ComplaintDetail from './pages/ComplaintDetail';
+// ✅ NEW imports
+import { ToastProvider } from './context/ToastContext';
+import NoticeBoardPage from './pages/NoticeBoardPage';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute><Dashboard /></ProtectedRoute>
-          } />
-          <Route path="/complaints" element={
-            <ProtectedRoute><ComplaintList /></ProtectedRoute>
-          } />
-          <Route path="/complaints/new" element={
-            <ProtectedRoute allowedRoles={['STUDENT']}>
-              <ComplaintForm />
-            </ProtectedRoute>
-          } />
-          <Route path="/notifications" element={
-            <ProtectedRoute><Notifications /></ProtectedRoute>
-          } />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/complaints/:id" element={
-  <ProtectedRoute><ComplaintDetail /></ProtectedRoute>
-} />
-
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    // ✅ NEW — wrap everything with ToastProvider
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            } />
+            <Route path="/complaints" element={
+              <ProtectedRoute><ComplaintList /></ProtectedRoute>
+            } />
+            <Route path="/complaints/new" element={
+              <ProtectedRoute allowedRoles={['STUDENT']}>
+                <ComplaintForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+              <ProtectedRoute><Notifications /></ProtectedRoute>
+            } />
+            <Route path="/complaints/:id" element={
+              <ProtectedRoute><ComplaintDetail /></ProtectedRoute>
+            } />
+            {/* ✅ NEW routes */}
+            <Route path="/notices" element={
+              <ProtectedRoute><NoticeBoardPage /></ProtectedRoute>
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute><ProfilePage /></ProtectedRoute>
+            } />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

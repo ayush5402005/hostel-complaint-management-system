@@ -117,6 +117,12 @@ const Notifications = () => {
             </button>
           </div>
         )}
+
+        {/* ✅ NEW — Footer */}
+        <p className="text-center text-xs text-gray-400 mt-10">
+          Developed by Ayush Kumar | ECE 2027 Batch
+        </p>
+
       </div>
     </div>
   );

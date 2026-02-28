@@ -3,36 +3,44 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
+// ✅ NEW — Comment section component (create separately, shown below)
+import CommentSection from '../components/CommentSection';
 
 const statusColors = {
-  CREATED: 'bg-gray-100 text-gray-700',
-  ASSIGNED: 'bg-blue-100 text-blue-700',
+  CREATED:     'bg-gray-100 text-gray-700',
+  ASSIGNED:    'bg-blue-100 text-blue-700',
   IN_PROGRESS: 'bg-yellow-100 text-yellow-700',
-  RESOLVED: 'bg-green-100 text-green-700',
-  CLOSED: 'bg-purple-100 text-purple-700',
-  REJECTED: 'bg-red-100 text-red-700',
+  RESOLVED:    'bg-green-100 text-green-700',
+  CLOSED:      'bg-purple-100 text-purple-700',
+  REJECTED:    'bg-red-100 text-red-700',
 };
 
 const priorityColors = {
-  LOW: 'bg-green-100 text-green-700',
+  LOW:    'bg-green-100 text-green-700',
   MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH: 'bg-red-100 text-red-700',
+  HIGH:   'bg-red-100 text-red-700',
 };
 
-const statusTimeline = [
-  'CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'
-];
+const statusTimeline = ['CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
 const ComplaintDetail = () => {
-  const { id } = useParams();
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [complaint, setComplaint] = useState(null);
-  const [workers, setWorkers] = useState([]);
+  const { id }          = useParams();
+  const { user }        = useAuth();
+  const navigate        = useNavigate();
+  const { showToast }   = useToast(); // ✅ NEW
+
+  const [complaint, setComplaint]         = useState(null);
+  const [workers, setWorkers]             = useState([]);
   const [selectedWorker, setSelectedWorker] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]             = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]                 = useState('');
+  // ✅ NEW — reject + reassign state
+  const [rejectReason, setRejectReason]   = useState('');
+  const [showRejectBox, setShowRejectBox] = useState(false);
+  const [showReassignBox, setShowReassignBox] = useState(false);
+  const [reassignWorker, setReassignWorker]   = useState('');
 
   const fetchComplaint = async () => {
     try {
@@ -55,13 +63,48 @@ const ComplaintDetail = () => {
   }, [id]);
 
   const handleAssign = async () => {
-    if (!selectedWorker) return alert('Please select a worker');
+    if (!selectedWorker) { showToast('Please select a worker', 'warning'); return; }
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/assign`, { workerId: Number(selectedWorker) });
+      showToast('Worker assigned successfully!', 'success'); // ✅ NEW
       fetchComplaint();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to assign');
+      showToast(err.response?.data?.message || 'Failed to assign', 'error'); // ✅ NEW
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✅ NEW — Reassign worker (S5)
+  const handleReassign = async () => {
+    if (!reassignWorker) { showToast('Please select a worker', 'warning'); return; }
+    setActionLoading(true);
+    try {
+      await api.put(`/complaints/${id}/reassign`, { workerId: Number(reassignWorker) });
+      showToast('Worker reassigned successfully!', 'success');
+      setShowReassignBox(false);
+      setReassignWorker('');
+      fetchComplaint();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to reassign', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✅ NEW — Reject complaint (S1)
+  const handleReject = async () => {
+    if (!rejectReason.trim()) { showToast('Please enter a rejection reason', 'warning'); return; }
+    setActionLoading(true);
+    try {
+      await api.put(`/complaints/${id}/reject`, { reason: rejectReason });
+      showToast('Complaint rejected', 'success');
+      setShowRejectBox(false);
+      setRejectReason('');
+      fetchComplaint();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to reject', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -71,9 +114,10 @@ const ComplaintDetail = () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/status`, { status });
+      showToast(`Status updated to ${status.replace('_', ' ')}`, 'success'); // ✅ NEW
       fetchComplaint();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update status');
+      showToast(err.response?.data?.message || 'Failed to update status', 'error'); // ✅ NEW
     } finally {
       setActionLoading(false);
     }
@@ -83,9 +127,10 @@ const ComplaintDetail = () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/close`);
+      showToast('Complaint closed successfully!', 'success'); // ✅ NEW
       fetchComplaint();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to close');
+      showToast(err.response?.data?.message || 'Failed to close', 'error'); // ✅ NEW
     } finally {
       setActionLoading(false);
     }
@@ -123,6 +168,8 @@ const ComplaintDetail = () => {
       </div>
     </div>
   );
+
+  const isOpen = !['CLOSED', 'REJECTED'].includes(complaint.status);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -179,6 +226,14 @@ const ComplaintDetail = () => {
               </div>
             </div>
 
+            {/* ✅ NEW — Rejection reason box */}
+            {complaint.status === 'REJECTED' && complaint.rejectionReason && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+                <p className="text-sm font-bold text-red-600 mb-1">❌ Complaint Rejected</p>
+                <p className="text-sm text-red-500">{complaint.rejectionReason}</p>
+              </div>
+            )}
+
             {/* Description */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
               <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Description</h2>
@@ -222,18 +277,20 @@ const ComplaintDetail = () => {
               <div className="flex items-center gap-0">
                 {statusTimeline.map((step, index) => {
                   const isCompleted = currentStep >= index;
-                  const isCurrent = currentStep === index;
+                  const isCurrent   = currentStep === index;
                   return (
                     <div key={step} className="flex items-center flex-1">
                       <div className="flex flex-col items-center flex-1">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition
-                          ${isCurrent ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
-                            : isCompleted ? 'bg-green-500 text-white'
-                            : 'bg-gray-200 text-gray-400'}`}>
+                          ${isCurrent   ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                          : isCompleted ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-400'}`}>
                           {isCompleted && !isCurrent ? '✓' : index + 1}
                         </div>
                         <p className={`text-xs mt-1 text-center font-medium
-                          ${isCurrent ? 'text-indigo-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}`}>
+                          ${isCurrent   ? 'text-indigo-600'
+                          : isCompleted ? 'text-green-600'
+                          : 'text-gray-400'}`}>
                           {step.replace('_', ' ')}
                         </p>
                       </div>
@@ -245,6 +302,10 @@ const ComplaintDetail = () => {
                 })}
               </div>
             </div>
+
+            {/* ✅ NEW — Comment Section */}
+            <CommentSection complaintId={id} />
+
           </div>
 
           {/* RIGHT — People + Actions */}
@@ -290,7 +351,7 @@ const ComplaintDetail = () => {
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
               <h2 className="text-sm font-semibold text-gray-500 uppercase">Actions</h2>
 
-              {/* WARDEN — Assign Worker */}
+              {/* WARDEN/CARETAKER — Assign Worker */}
               {['CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
                 <div className="space-y-2">
                   <select value={selectedWorker}
@@ -308,6 +369,65 @@ const ComplaintDetail = () => {
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
                     {actionLoading ? 'Assigning...' : '👷 Assign Worker'}
                   </button>
+                </div>
+              )}
+
+              {/* ✅ NEW — WARDEN/CARETAKER — Reassign Worker (S5) */}
+              {['CARETAKER', 'WARDEN'].includes(user.role) &&
+                ['ASSIGNED', 'IN_PROGRESS'].includes(complaint.status) && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowReassignBox(r => !r)}
+                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-sm font-medium transition"
+                  >
+                    🔄 Reassign Worker
+                  </button>
+                  {showReassignBox && (
+                    <div className="space-y-2 pt-1">
+                      <select value={reassignWorker}
+                        onChange={e => setReassignWorker(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Select New Worker</option>
+                        {workers.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} {w.department ? `(${w.department})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <button onClick={handleReassign} disabled={actionLoading}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
+                        {actionLoading ? 'Reassigning...' : 'Confirm Reassign'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ✅ NEW — WARDEN/CARETAKER — Reject Complaint (S1) */}
+              {['CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowRejectBox(r => !r)}
+                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium transition"
+                  >
+                    ❌ Reject Complaint
+                  </button>
+                  {showRejectBox && (
+                    <div className="space-y-2 pt-1">
+                      <textarea
+                        rows={3}
+                        placeholder="Enter reason for rejection..."
+                        value={rejectReason}
+                        onChange={e => setRejectReason(e.target.value)}
+                        className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+                      />
+                      <button onClick={handleReject} disabled={actionLoading}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
+                        {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -346,6 +466,12 @@ const ComplaintDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* ✅ NEW — Footer */}
+        <p className="text-center text-xs text-gray-400 mt-10">
+          Developed by Ayush Kumar | ECE 2027 Batch
+        </p>
+
       </div>
     </div>
   );

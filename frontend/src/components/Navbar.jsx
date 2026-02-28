@@ -47,6 +47,8 @@ const Navbar = () => {
           {user?.role === 'STUDENT' && (
             <Link to="/complaints/new" className="hover:text-indigo-600 transition">New Complaint</Link>
           )}
+          {/* ✅ NEW — Notices link for all roles */}
+          <Link to="/notices" className="hover:text-indigo-600 transition">📋 Notices</Link>
           {['WARDEN', 'CARETAKER'].includes(user?.role) && (
             <Link to="/admin" className="hover:text-indigo-600 transition">Admin</Link>
           )}
@@ -67,7 +69,16 @@ const Navbar = () => {
             </span>
           )}
         </Link>
-        <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
+        {/* ✅ NEW — Profile link showing user name */}
+        <Link
+          to="/profile"
+          className="hidden md:flex items-center gap-2 text-sm text-gray-600 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition"
+        >
+          <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold">
+            {user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
+          </span>
+          <span className="hidden lg:block">{user?.name || user?.email}</span>
+        </Link>
         <button
           onClick={handleLogout}
           className="text-sm bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-700 px-3 py-1.5 rounded-lg transition"

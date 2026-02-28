@@ -36,6 +36,26 @@ public class ComplaintController {
                 complaintService.assignWorker(id, request.getWorkerId(), authentication.getName()));
     }
 
+    // ✅ NEW — Reassign worker (S5)
+    @PutMapping("/{id}/reassign")
+    public ResponseEntity<ComplaintResponse> reassignWorker(
+            @PathVariable Long id,
+            @RequestBody AssignWorkerRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.reassignWorker(id, request.getWorkerId(), authentication.getName()));
+    }
+
+    // ✅ NEW — Reject complaint with reason (S1)
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<ComplaintResponse> rejectComplaint(
+            @PathVariable Long id,
+            @RequestBody RejectComplaintRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.rejectComplaint(id, request.getReason(), authentication.getName()));
+    }
+
     @PutMapping("/{id}/status")
     public ResponseEntity<ComplaintResponse> updateStatus(
             @PathVariable Long id,
@@ -68,11 +88,20 @@ public class ComplaintController {
         return ResponseEntity.ok(
                 complaintService.getDashboardStats(authentication.getName()));
     }
-    @GetMapping("/{id}")
-public ResponseEntity<ComplaintResponse> getComplaintById(
-        @PathVariable Long id,
-        Authentication authentication) {
-    return ResponseEntity.ok(complaintService.getComplaintById(id, authentication.getName()));
-}
 
+    // ✅ NEW — Student dashboard stats (S3)
+    @GetMapping("/dashboard/student")
+    public ResponseEntity<StudentDashboardStatsResponse> getStudentDashboard(
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.getStudentDashboardStats(authentication.getName()));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ComplaintResponse> getComplaintById(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.getComplaintById(id, authentication.getName()));
+    }
 }
