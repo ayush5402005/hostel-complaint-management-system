@@ -1,5 +1,6 @@
 package com.hostel.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hostel.backend.enums.Role;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -17,14 +18,13 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ================= BASIC INFO =================
-
     @Column(nullable = false)
     private String name;
 
     @Column(nullable = false, unique = true)
     private String email;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -35,16 +35,12 @@ public class User {
     @Column(nullable = false, unique = true)
     private String phoneNumber;
 
-    // ================= STUDENT SPECIFIC =================
-
     @Column(unique = true)
-    private String scholarNumber;  // Only for STUDENT
+    private String scholarNumber;
 
-    private String hostelBlock;    // Only for STUDENT
+    private String hostelBlock;
 
-    private String roomNumber;     // NOT unique (2 students per room)
+    private String roomNumber;
 
-    // ================= STAFF SPECIFIC =================
-
-    private String department;     // Only required for WORKER
+    private String department;
 }

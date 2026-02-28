@@ -1,5 +1,6 @@
 package com.hostel.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.enums.ComplaintPriority;
 import com.hostel.backend.enums.ComplaintCategory;
@@ -48,12 +49,15 @@ public class Complaint {
     @Column(length = 500)
     private String resolvedPhotoUrl;
 
+    // FIXED: JsonIgnoreProperties prevents LazyInitializationException
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User student;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "worker_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User assignedWorker;
 
     @CreationTimestamp
