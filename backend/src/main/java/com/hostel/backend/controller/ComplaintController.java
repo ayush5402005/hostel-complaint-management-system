@@ -1,15 +1,13 @@
 package com.hostel.backend.controller;
 
-import com.hostel.backend.dto.AssignWorkerRequest;
-import com.hostel.backend.dto.ComplaintRequest;
-import com.hostel.backend.dto.DashboardStatsResponse;
-import com.hostel.backend.dto.UpdateComplaintStatusRequest;
-import com.hostel.backend.entity.Complaint;
+import com.hostel.backend.dto.*;
+import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.service.ComplaintService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.data.domain.Page;
-import com.hostel.backend.enums.ComplaintStatus;
 
 @RestController
 @RequestMapping("/api/complaints")
@@ -22,50 +20,52 @@ public class ComplaintController {
     }
 
     @PostMapping
-    public Complaint createComplaint(@RequestBody ComplaintRequest request,
-                                     Authentication authentication) {
-
-        String email = authentication.getName(); // from JWT
-        return complaintService.createComplaint(email, request);
+    public ResponseEntity<ComplaintResponse> createComplaint(
+            @Valid @RequestBody ComplaintRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.createComplaint(authentication.getName(), request));
     }
+
     @PutMapping("/{id}/assign")
-public Complaint assignWorker(@PathVariable Long id,
-                              @RequestBody AssignWorkerRequest request,
-                              Authentication authentication) {
+    public ResponseEntity<ComplaintResponse> assignWorker(
+            @PathVariable Long id,
+            @RequestBody AssignWorkerRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.assignWorker(id, request.getWorkerId(), authentication.getName()));
+    }
 
-    String email = authentication.getName();
-    return complaintService.assignWorker(id, request.getWorkerId(), email);
-}
-@PutMapping("/{id}/status")
-public Complaint updateStatus(@PathVariable Long id,
-                              @RequestBody UpdateComplaintStatusRequest request,
-                              Authentication authentication) {
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ComplaintResponse> updateStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateComplaintStatusRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.updateStatus(id, request, authentication.getName()));
+    }
 
-    String email = authentication.getName();
-    return complaintService.updateStatus(id, request, email);
-}
-@PutMapping("/{id}/close")
-public Complaint closeComplaint(@PathVariable Long id,
-                                Authentication authentication) {
+    @PutMapping("/{id}/close")
+    public ResponseEntity<ComplaintResponse> closeComplaint(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.closeComplaint(id, authentication.getName()));
+    }
 
-    String email = authentication.getName();
-    return complaintService.closeComplaint(id, email);
-}
+    @GetMapping
+    public ResponseEntity<Page<ComplaintResponse>> getComplaints(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) ComplaintStatus status) {
+        return ResponseEntity.ok(
+                complaintService.getComplaintsByRole(authentication.getName(), page, size, status));
+    }
 
-@GetMapping
-public Page<Complaint> getComplaints(Authentication authentication,
-                                     @RequestParam(defaultValue = "0") int page,
-                                     @RequestParam(defaultValue = "5") int size,
-                                     @RequestParam(required = false) ComplaintStatus status) {
-
-    String email = authentication.getName();
-
-    return complaintService.getComplaintsByRole(email, page, size, status);
-}
-@GetMapping("/dashboard")
-public DashboardStatsResponse getDashboard(Authentication authentication) {
-
-    String email = authentication.getName();
-    return complaintService.getDashboardStats(email);
-}
+    @GetMapping("/dashboard")
+    public ResponseEntity<DashboardStatsResponse> getDashboard(Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.getDashboardStats(authentication.getName()));
+    }
 }
