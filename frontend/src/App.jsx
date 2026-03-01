@@ -8,20 +8,22 @@ import ComplaintForm from './pages/ComplaintForm';
 import ComplaintList from './pages/ComplaintList';
 import Notifications from './pages/Notifications';
 import ComplaintDetail from './pages/ComplaintDetail';
-// ✅ NEW imports
 import { ToastProvider } from './context/ToastContext';
 import NoticeBoardPage from './pages/NoticeBoardPage';
 import ProfilePage from './pages/ProfilePage';
+// ✅ NEW — Admin pages
+import UserManagement from './pages/admin/UserManagement';
+import CreateUser from './pages/admin/CreateUser';
 
 function App() {
   return (
-    // ✅ NEW — wrap everything with ToastProvider
     <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route path="/login"    element={<Login />} />
             <Route path="/register" element={<Register />} />
+
             <Route path="/dashboard" element={
               <ProtectedRoute><Dashboard /></ProtectedRoute>
             } />
@@ -33,21 +35,33 @@ function App() {
                 <ComplaintForm />
               </ProtectedRoute>
             } />
-            <Route path="/notifications" element={
-              <ProtectedRoute><Notifications /></ProtectedRoute>
-            } />
             <Route path="/complaints/:id" element={
               <ProtectedRoute><ComplaintDetail /></ProtectedRoute>
             } />
-            {/* ✅ NEW routes */}
+            <Route path="/notifications" element={
+              <ProtectedRoute><Notifications /></ProtectedRoute>
+            } />
             <Route path="/notices" element={
               <ProtectedRoute><NoticeBoardPage /></ProtectedRoute>
             } />
             <Route path="/profile" element={
               <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+            {/* ✅ NEW — Admin routes, only ADMIN/WARDEN/CARETAKER */}
+            <Route path="/admin/users" element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'WARDEN', 'CARETAKER']}>
+                <UserManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/users/new" element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'WARDEN', 'CARETAKER']}>
+                <CreateUser />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/"  element={<Navigate to="/dashboard" replace />} />
+            <Route path="*"  element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

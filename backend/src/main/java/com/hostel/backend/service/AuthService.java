@@ -1,11 +1,13 @@
 package com.hostel.backend.service;
 
 import com.hostel.backend.entity.User;
+import com.hostel.backend.enums.Role;
 import com.hostel.backend.repository.UserRepository;
 import com.hostel.backend.dto.RegisterRequest;
 import com.hostel.backend.security.JwtUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -22,86 +24,72 @@ public class AuthService {
         this.jwtUtil = jwtUtil;
     }
 
-    // REGISTER
+    // REGISTER — Only STUDENT can self-register
     public User register(RegisterRequest request) {
 
-    // 1️⃣ Basic mandatory validation
-    if (request.getName() == null || request.getEmail() == null ||
-        request.getPassword() == null || request.getRole() == null ||
-        request.getPhoneNumber() == null) {
-
-        throw new RuntimeException("Required fields are missing");
-    }
-
-    // 2️⃣ Role-based validation & cleanup
-    switch (request.getRole()) {
-
-        case STUDENT:
-            if (request.getScholarNumber() == null ||
-                request.getHostelBlock() == null ||
-                request.getRoomNumber() == null) {
-
-                throw new RuntimeException("Student must have scholarNumber, hostelBlock and roomNumber");
-            }
-
-            // Ignore department for student
-            request.setDepartment(null);
-            break;
-
-        case WORKER:
-            if (request.getDepartment() == null) {
-                throw new RuntimeException("Worker must have department");
-            }
-
-            // Remove student-specific fields
-            request.setScholarNumber(null);
-            request.setHostelBlock(null);
-            request.setRoomNumber(null);
-            break;
-
-        case CARETAKER:
-        case WARDEN:
-        case MESS_CONVENOR:
-
-            // Remove student fields
-            request.setScholarNumber(null);
-            request.setHostelBlock(null);
-            request.setRoomNumber(null);
-
-            // Department not required
-            break;
-
-        default:
-            throw new RuntimeException("Invalid role");
-    }
-
-    // 3️⃣ Create User entity
-    User user = new User();
-
-    user.setName(request.getName());
-    user.setEmail(request.getEmail());
-    user.setRole(request.getRole());
-    user.setPhoneNumber(request.getPhoneNumber());
-    user.setScholarNumber(request.getScholarNumber());
-    user.setHostelBlock(request.getHostelBlock());
-    user.setRoomNumber(request.getRoomNumber());
-    user.setDepartment(request.getDepartment());
-
-    user.setPassword(passwordEncoder.encode(request.getPassword()));
-
-    return userRepository.save(user);
-}
-
-    // LOGIN → RETURN TOKEN
-    public String login(String email, String password) {
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new RuntimeException("Invalid credentials");
+        // ✅ SECURITY — Block non-student self-registration
+        if (request.getRole() != null && request.getRole() != Role.STUDENT) {
+            throw new RuntimeException("Self-registration is only allowed for STUDENT role");
         }
 
-        return jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+        // Basic mandatory validation
+        if (request.getName() == null || request.getEmail() == null ||
+            request.getPassword() == null || request.getPhoneNumber() == null) {
+            throw new RuntimeException("Required fields are missing");
+        }
+
+        // Check duplicate email
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("Email already registered");
+        }
+
+        // Student-specific validation
+        if (request.getScholarNumber() == null ||
+            request.getHostelBlock() == null ||
+            request.getRoomNumber() == null) {
+            throw new RuntimeException("Student must have scholarNumber, hostelBlock and roomNumber");
+        }
+
+        User user = User.builder()
+                .name(request.getName())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.STUDENT) // ✅ Always hardcoded, never from request
+                .phoneNumber(request.getPhoneNumber())
+                .scholarNumber(request.getScholarNumber())
+                .hostelBlock(request.getHostelBlock())
+                .roomNumber(request.getRoomNumber())
+                .department(null) // students don't need department
+                .active(true)
+                .build();
+
+        return userRepository.save(user);
     }
+
+    // LOGIN → RETURN TOKEN
+    // LOGIN → RETURN TOKEN + ROLE + NAME
+public Map<String, String> login(String email, String password) {
+
+    User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+    if (!user.isActive()) {
+        throw new RuntimeException("Your account has been deactivated. Contact admin.");
+    }
+
+    if (!passwordEncoder.matches(password, user.getPassword())) {
+        throw new RuntimeException("Invalid credentials");
+    }
+
+    String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+
+    // ✅ Return token + role + name so frontend can route correctly
+    return Map.of(
+        "token", token,
+        "role", user.getRole().name(),
+        "name", user.getName(),
+        "email", user.getEmail()
+    );
+}
+
 }

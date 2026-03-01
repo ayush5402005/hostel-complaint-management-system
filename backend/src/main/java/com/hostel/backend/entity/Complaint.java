@@ -50,9 +50,22 @@ public class Complaint {
     @Column(length = 500)
     private String resolvedPhotoUrl;
 
-    // ✅ NEW — rejection reason field
     @Column(length = 500)
     private String rejectionReason;
+
+    // ✅ NEW — student rating (1–5) given when closing complaint
+    @Column
+    private Integer rating;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isOverdue = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isEscalated = false;
+
+    private LocalDateTime lastSlaNotifiedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
@@ -64,7 +77,6 @@ public class Complaint {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User assignedWorker;
 
-    // ✅ NEW — comments relationship
     @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private List<ComplaintComment> comments;

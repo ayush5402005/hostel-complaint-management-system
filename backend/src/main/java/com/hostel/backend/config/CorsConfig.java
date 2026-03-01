@@ -17,12 +17,13 @@ public class CorsConfig {
 
         // Allow frontend origins
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173",   // React dev server
-                "http://localhost:3000",   // alternate dev port
-                "https://your-frontend.vercel.app" // production (update later)
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://your-frontend.vercel.app"
         ));
 
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // ✅ PATCH added here — was missing before
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 

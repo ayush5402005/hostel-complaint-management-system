@@ -3,11 +3,7 @@ package com.hostel.backend.dto;
 import com.hostel.backend.enums.ComplaintCategory;
 import com.hostel.backend.enums.ComplaintPriority;
 import com.hostel.backend.enums.ComplaintStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import java.time.LocalDateTime;
 
 @Data
@@ -15,6 +11,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ComplaintResponse {
+
     private Long id;
     private String title;
     private String description;
@@ -23,8 +20,13 @@ public class ComplaintResponse {
     private ComplaintStatus status;
     private String issuePhotoUrl;
     private String resolvedPhotoUrl;
-    // ✅ NEW — rejection reason shown to student
     private String rejectionReason;
+
+    // ✅ NEW
+    private Integer rating;
+
+    private boolean overdue;
+    private boolean escalated;
     private UserSummaryDTO student;
     private UserSummaryDTO assignedWorker;
     private LocalDateTime createdAt;

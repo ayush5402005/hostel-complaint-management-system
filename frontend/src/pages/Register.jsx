@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
-const ROLES = ['STUDENT', 'WORKER', 'CARETAKER', 'WARDEN', 'MESS_CONVENOR'];
-
 const Register = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: '', email: '', password: '', role: 'STUDENT',
-    phoneNumber: '', scholarNumber: '', hostelBlock: '',
-    roomNumber: '', department: '',
+    name: '', email: '', password: '',
+    phoneNumber: '', scholarNumber: '',
+    hostelBlock: '', roomNumber: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +17,10 @@ const Register = () => {
     setError('');
     setLoading(true);
     try {
-      await api.post('/auth/register', form);
+      await api.post('/auth/register', {
+        ...form,
+        role: 'STUDENT', // ✅ Always STUDENT, never from user input
+      });
       navigate('/login');
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Try again.');
@@ -34,7 +35,7 @@ const Register = () => {
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">🏠</div>
           <h1 className="text-2xl font-bold text-gray-800">Create Account</h1>
-          <p className="text-gray-500 text-sm mt-1">Join HostelDesk today</p>
+          <p className="text-gray-500 text-sm mt-1">Student registration — Join HostelDesk</p>
         </div>
 
         {error && (
@@ -78,57 +79,33 @@ const Register = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select value={form.role}
-              onChange={e => setForm({ ...form, role: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-
-          {form.role === 'STUDENT' && (
-            <div className="border border-blue-100 bg-blue-50 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-blue-600 uppercase">Student Details</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Scholar No.</label>
-                  <input type="text" value={form.scholarNumber}
-                    onChange={e => setForm({ ...form, scholarNumber: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Hostel Block</label>
-                  <input type="text" value={form.hostelBlock}
-                    onChange={e => setForm({ ...form, hostelBlock: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Room No.</label>
-                  <input type="text" value={form.roomNumber}
-                    onChange={e => setForm({ ...form, roomNumber: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {form.role === 'WORKER' && (
-            <div className="border border-green-100 bg-green-50 rounded-xl p-4">
-              <p className="text-xs font-semibold text-green-600 uppercase mb-2">Worker Details</p>
+          {/* ✅ Student details always shown — only students can register */}
+          <div className="border border-blue-100 bg-blue-50 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-blue-600 uppercase">Student Details</p>
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                <input type="text" value={form.department}
-                  onChange={e => setForm({ ...form, department: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                <label className="block text-xs font-medium text-gray-700 mb-1">Scholar No.</label>
+                <input type="text" required value={form.scholarNumber}
+                  onChange={e => setForm({ ...form, scholarNumber: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Hostel Block</label>
+                <input type="text" required value={form.hostelBlock}
+                  onChange={e => setForm({ ...form, hostelBlock: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Room No.</label>
+                <input type="text" required value={form.roomNumber}
+                  onChange={e => setForm({ ...form, roomNumber: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
-          )}
+          </div>
 
           <button type="submit" disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-50"

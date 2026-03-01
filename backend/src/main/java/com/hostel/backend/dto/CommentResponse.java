@@ -14,4 +14,7 @@ public class CommentResponse {
     private String userRole;
     private Long userId;
     private LocalDateTime createdAt;
+    private boolean isOverdue;
+private boolean isEscalated;
+
 }

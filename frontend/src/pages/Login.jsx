@@ -11,19 +11,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await api.post('/auth/login', form);
-      login(res.data.token);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.preventDefault();
+  setError('');
+  setLoading(true);
+  try {
+    const res = await api.post('/auth/login', form);
+    // ✅ Pass full response — token + name + role
+    login(res.data.token, res.data.name, res.data.role);
+    navigate('/dashboard');
+  } catch (err) {
+    setError(err.response?.data?.message || 'Invalid email or password');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center p-4">

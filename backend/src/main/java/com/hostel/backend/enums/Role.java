@@ -6,5 +6,6 @@ public enum Role {
     WORKER,           // Resolves assigned complaints
     CARETAKER,        // Manages assignments
     WARDEN,           // Super admin of hostel
-    MESS_CONVENOR     // Handles mess-related issues
+    MESS_CONVENOR,     // Handles mess-related issues
+    ADMIN
 }

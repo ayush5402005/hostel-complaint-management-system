@@ -12,7 +12,7 @@ const NoticeBoardPage = () => {
   const [content, setContent]   = useState('');
   const [loading, setLoading]   = useState(false);
 
-  const canPost = ['WARDEN', 'CARETAKER'].includes(user?.role);
+  const canPost = ['ADMIN','WARDEN', 'CARETAKER'].includes(user?.role);
 
   const fetchNotices = async () => {
     try {

@@ -36,7 +36,6 @@ public class ComplaintController {
                 complaintService.assignWorker(id, request.getWorkerId(), authentication.getName()));
     }
 
-    // ✅ NEW — Reassign worker (S5)
     @PutMapping("/{id}/reassign")
     public ResponseEntity<ComplaintResponse> reassignWorker(
             @PathVariable Long id,
@@ -46,7 +45,6 @@ public class ComplaintController {
                 complaintService.reassignWorker(id, request.getWorkerId(), authentication.getName()));
     }
 
-    // ✅ NEW — Reject complaint with reason (S1)
     @PutMapping("/{id}/reject")
     public ResponseEntity<ComplaintResponse> rejectComplaint(
             @PathVariable Long id,
@@ -65,12 +63,14 @@ public class ComplaintController {
                 complaintService.updateStatus(id, request, authentication.getName()));
     }
 
+    // ✅ Updated — accepts rating in body
     @PutMapping("/{id}/close")
     public ResponseEntity<ComplaintResponse> closeComplaint(
             @PathVariable Long id,
+            @RequestBody(required = false) CloseComplaintRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(
-                complaintService.closeComplaint(id, authentication.getName()));
+                complaintService.closeComplaint(id, request, authentication.getName()));
     }
 
     @GetMapping
@@ -89,12 +89,19 @@ public class ComplaintController {
                 complaintService.getDashboardStats(authentication.getName()));
     }
 
-    // ✅ NEW — Student dashboard stats (S3)
     @GetMapping("/dashboard/student")
     public ResponseEntity<StudentDashboardStatsResponse> getStudentDashboard(
             Authentication authentication) {
         return ResponseEntity.ok(
                 complaintService.getStudentDashboardStats(authentication.getName()));
+    }
+
+    // ✅ NEW — Worker dashboard stats
+    @GetMapping("/dashboard/worker")
+    public ResponseEntity<WorkerDashboardStatsResponse> getWorkerDashboard(
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.getWorkerDashboardStats(authentication.getName()));
     }
 
     @GetMapping("/{id}")

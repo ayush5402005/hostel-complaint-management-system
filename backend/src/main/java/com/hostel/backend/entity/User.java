@@ -3,15 +3,14 @@ package com.hostel.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hostel.backend.enums.Role;
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "users")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder                      // ✅ NEW
 public class User {
 
     @Id
@@ -39,8 +38,12 @@ public class User {
     private String scholarNumber;
 
     private String hostelBlock;
-
     private String roomNumber;
-
     private String department;
+
+    // ✅ NEW — soft delete / deactivate
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean active = true;
+    
 }

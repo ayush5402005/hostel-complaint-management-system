@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-// ✅ NEW — Comment section component (create separately, shown below)
 import CommentSection from '../components/CommentSection';
 
 const statusColors = {
@@ -24,38 +23,164 @@ const priorityColors = {
 
 const statusTimeline = ['CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
-const ComplaintDetail = () => {
-  const { id }          = useParams();
-  const { user }        = useAuth();
-  const navigate        = useNavigate();
-  const { showToast }   = useToast(); // ✅ NEW
+// ── ⭐ Star Rating Component ─────────────────────────────────────────────────
+const StarRating = ({ value, onChange, readonly = false }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map(star => (
+      <button
+        key={star}
+        type="button"
+        onClick={() => !readonly && onChange && onChange(star)}
+        className={`text-2xl transition ${readonly ? 'cursor-default' : 'cursor-pointer hover:scale-110'} 
+          ${star <= value ? 'text-yellow-400' : 'text-gray-300'}`}
+      >
+        ★
+      </button>
+    ))}
+  </div>
+);
 
-  const [complaint, setComplaint]         = useState(null);
-  const [workers, setWorkers]             = useState([]);
-  const [selectedWorker, setSelectedWorker] = useState('');
-  const [loading, setLoading]             = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError]                 = useState('');
-  // ✅ NEW — reject + reassign state
-  const [rejectReason, setRejectReason]   = useState('');
-  const [showRejectBox, setShowRejectBox] = useState(false);
+// ── 📋 Audit Log Timeline ────────────────────────────────────────────────────
+const AuditTimeline = ({ complaintId }) => {
+  const [logs, setLogs]       = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/complaints/${complaintId}/audit`)
+      .then(res => setLogs(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [complaintId]);
+
+  const roleColor = (role) => {
+    const map = {
+      STUDENT:    'bg-indigo-100 text-indigo-700',
+      WORKER:     'bg-green-100 text-green-700',
+      WARDEN:     'bg-purple-100 text-purple-700',
+      CARETAKER:  'bg-orange-100 text-orange-700',
+    };
+    return map[role] || 'bg-gray-100 text-gray-700';
+  };
+
+  const statusIcon = (toStatus) => {
+    const map = {
+      CREATED:     '📝',
+      ASSIGNED:    '👷',
+      IN_PROGRESS: '🔧',
+      RESOLVED:    '✅',
+      CLOSED:      '🔒',
+      REJECTED:    '❌',
+    };
+    return map[toStatus] || '📋';
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  if (loading) return (
+    <div className="flex justify-center py-4">
+      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (logs.length === 0) return (
+    <p className="text-sm text-gray-400 text-center py-3">No activity yet</p>
+  );
+
+  return (
+    <div className="space-y-3">
+      {logs.map((log, index) => (
+        <div key={log.id} className="flex gap-3">
+          {/* Timeline line */}
+          <div className="flex flex-col items-center">
+            <div className="w-8 h-8 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center text-sm flex-shrink-0">
+              {statusIcon(log.toStatus)}
+            </div>
+            {index < logs.length - 1 && (
+              <div className="w-0.5 bg-gray-200 flex-1 mt-1 min-h-[20px]" />
+            )}
+          </div>
+          {/* Content */}
+          <div className="pb-4 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-gray-800">
+                {log.changedByName}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColor(log.changedByRole)}`}>
+                {log.changedByRole}
+              </span>
+              {log.fromStatus && (
+                <span className="text-xs text-gray-400">
+                  {log.fromStatus} → <span className="font-medium text-gray-600">{log.toStatus}</span>
+                </span>
+              )}
+              {!log.fromStatus && (
+                <span className="text-xs font-medium text-gray-600">{log.toStatus}</span>
+              )}
+            </div>
+            {log.note && (
+              <p className="text-xs text-gray-500 mt-0.5">{log.note}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.changedAt)}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
+const ComplaintDetail = () => {
+  const { id }        = useParams();
+  const { user }      = useAuth();
+  const navigate      = useNavigate();
+  const { showToast } = useToast();
+
+  const [complaint, setComplaint]             = useState(null);
+  const [workers, setWorkers]                 = useState([]);
+  const [selectedWorker, setSelectedWorker]   = useState('');
+  const [loading, setLoading]                 = useState(true);
+  const [actionLoading, setActionLoading]     = useState(false);
+  const [error, setError]                     = useState('');
+  const [rejectReason, setRejectReason]       = useState('');
+  const [showRejectBox, setShowRejectBox]     = useState(false);
   const [showReassignBox, setShowReassignBox] = useState(false);
   const [reassignWorker, setReassignWorker]   = useState('');
+
+  // ⭐ Rating state
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [ratingValue, setRatingValue]         = useState(0);
+  const [ratingComment, setRatingComment]     = useState('');
+  const [ratingLoading, setRatingLoading]     = useState(false);
+  const [existingRating, setExistingRating]   = useState(null);
 
   const fetchComplaint = async () => {
     try {
       const res = await api.get(`/complaints/${id}`);
       setComplaint(res.data);
-    } catch (err) {
+    } catch {
       setError('Complaint not found');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchRating = async () => {
+    try {
+      const res = await api.get(`/complaints/${id}/rating`);
+      if (res.data) setExistingRating(res.data);
+    } catch {}
+  };
+
   useEffect(() => {
     fetchComplaint();
-    if (['CARETAKER', 'WARDEN'].includes(user.role)) {
+    fetchRating();
+    if (['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role)) {
       api.get('/users/workers')
         .then(res => setWorkers(res.data))
         .catch(() => {});
@@ -67,16 +192,15 @@ const ComplaintDetail = () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/assign`, { workerId: Number(selectedWorker) });
-      showToast('Worker assigned successfully!', 'success'); // ✅ NEW
+      showToast('Worker assigned successfully!', 'success');
       fetchComplaint();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to assign', 'error'); // ✅ NEW
+      showToast(err.response?.data?.message || 'Failed to assign', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // ✅ NEW — Reassign worker (S5)
   const handleReassign = async () => {
     if (!reassignWorker) { showToast('Please select a worker', 'warning'); return; }
     setActionLoading(true);
@@ -93,7 +217,6 @@ const ComplaintDetail = () => {
     }
   };
 
-  // ✅ NEW — Reject complaint (S1)
   const handleReject = async () => {
     if (!rejectReason.trim()) { showToast('Please enter a rejection reason', 'warning'); return; }
     setActionLoading(true);
@@ -114,10 +237,10 @@ const ComplaintDetail = () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/status`, { status });
-      showToast(`Status updated to ${status.replace('_', ' ')}`, 'success'); // ✅ NEW
+      showToast(`Status updated to ${status.replace('_', ' ')}`, 'success');
       fetchComplaint();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to update status', 'error'); // ✅ NEW
+      showToast(err.response?.data?.message || 'Failed to update status', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -127,12 +250,33 @@ const ComplaintDetail = () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/close`);
-      showToast('Complaint closed successfully!', 'success'); // ✅ NEW
+      showToast('Complaint closed! Please rate the resolution ⭐', 'success');
       fetchComplaint();
+      // Show rating popup after close
+      setShowRatingPopup(true);
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to close', 'error'); // ✅ NEW
+      showToast(err.response?.data?.message || 'Failed to close', 'error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // ⭐ Submit rating
+  const handleSubmitRating = async () => {
+    if (ratingValue === 0) { showToast('Please select a star rating', 'warning'); return; }
+    setRatingLoading(true);
+    try {
+      await api.post(`/complaints/${id}/rating`, {
+        rating: ratingValue,
+        comment: ratingComment
+      });
+      showToast('Rating submitted! Thank you ⭐', 'success');
+      setShowRatingPopup(false);
+      fetchRating();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to submit rating', 'error');
+    } finally {
+      setRatingLoading(false);
     }
   };
 
@@ -174,6 +318,45 @@ const ComplaintDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
+
+      {/* ⭐ Rating Popup Modal */}
+      {showRatingPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <p className="text-3xl mb-2">⭐</p>
+              <h3 className="text-lg font-bold text-gray-800">Rate the Resolution</h3>
+              <p className="text-sm text-gray-500 mt-1">How satisfied are you with the work done?</p>
+            </div>
+            <div className="flex justify-center mb-4">
+              <StarRating value={ratingValue} onChange={setRatingValue} />
+            </div>
+            <textarea
+              rows={3}
+              placeholder="Optional: Leave a comment about the work..."
+              value={ratingComment}
+              onChange={e => setRatingComment(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRatingPopup(false)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleSubmitRating}
+                disabled={ratingLoading || ratingValue === 0}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50"
+              >
+                {ratingLoading ? 'Submitting...' : 'Submit Rating'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Back Button */}
@@ -193,6 +376,19 @@ const ComplaintDetail = () => {
                 <div>
                   <p className="text-xs text-gray-400 font-medium mb-1">COMPLAINT #{complaint.id}</p>
                   <h1 className="text-xl font-bold text-gray-800">{complaint.title}</h1>
+                  {/* ✅ OVERDUE + ESCALATED badges */}
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {complaint.overdue && (
+                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
+                        🔴 OVERDUE
+                      </span>
+                    )}
+                    {complaint.escalated && (
+                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-100 text-orange-700 animate-pulse">
+                        🚨 ESCALATED
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${statusColors[complaint.status]}`}>
@@ -226,11 +422,37 @@ const ComplaintDetail = () => {
               </div>
             </div>
 
-            {/* ✅ NEW — Rejection reason box */}
+            {/* Rejection reason box */}
             {complaint.status === 'REJECTED' && complaint.rejectionReason && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
                 <p className="text-sm font-bold text-red-600 mb-1">❌ Complaint Rejected</p>
                 <p className="text-sm text-red-500">{complaint.rejectionReason}</p>
+              </div>
+            )}
+
+            {/* ⭐ Existing Rating Box (shown if already rated) */}
+            {complaint.status === 'CLOSED' && existingRating && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
+                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Your Rating</p>
+                <StarRating value={existingRating.rating} readonly />
+                {existingRating.comment && (
+                  <p className="text-sm text-gray-600 mt-2 italic">"{existingRating.comment}"</p>
+                )}
+              </div>
+            )}
+
+            {/* ⭐ Rate Now button (closed + no rating yet + student) */}
+            {complaint.status === 'CLOSED' && !existingRating &&
+              user.role === 'STUDENT' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
+                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Rate the Resolution</p>
+                <p className="text-sm text-gray-500 mb-3">You haven't rated this complaint yet.</p>
+                <button
+                  onClick={() => setShowRatingPopup(true)}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                >
+                  ⭐ Rate Now
+                </button>
               </div>
             )}
 
@@ -303,8 +525,16 @@ const ComplaintDetail = () => {
               </div>
             </div>
 
-            {/* ✅ NEW — Comment Section */}
+            {/* Comment Section */}
             <CommentSection complaintId={id} />
+
+            {/* ✅ Audit Log Timeline */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase mb-4">
+                📋 Activity History
+              </h2>
+              <AuditTimeline complaintId={id} />
+            </div>
 
           </div>
 
@@ -352,7 +582,7 @@ const ComplaintDetail = () => {
               <h2 className="text-sm font-semibold text-gray-500 uppercase">Actions</h2>
 
               {/* WARDEN/CARETAKER — Assign Worker */}
-              {['CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
+              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
                 <div className="space-y-2">
                   <select value={selectedWorker}
                     onChange={e => setSelectedWorker(e.target.value)}
@@ -372,8 +602,8 @@ const ComplaintDetail = () => {
                 </div>
               )}
 
-              {/* ✅ NEW — WARDEN/CARETAKER — Reassign Worker (S5) */}
-              {['CARETAKER', 'WARDEN'].includes(user.role) &&
+              {/* WARDEN/CARETAKER — Reassign Worker */}
+              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) &&
                 ['ASSIGNED', 'IN_PROGRESS'].includes(complaint.status) && (
                 <div className="space-y-2">
                   <button
@@ -404,8 +634,8 @@ const ComplaintDetail = () => {
                 </div>
               )}
 
-              {/* ✅ NEW — WARDEN/CARETAKER — Reject Complaint (S1) */}
-              {['CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
+              {/* WARDEN/CARETAKER — Reject Complaint */}
+              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
                 <div className="space-y-2">
                   <button
                     onClick={() => setShowRejectBox(r => !r)}
@@ -467,7 +697,6 @@ const ComplaintDetail = () => {
           </div>
         </div>
 
-        {/* ✅ NEW — Footer */}
         <p className="text-center text-xs text-gray-400 mt-10">
           Developed by Ayush Kumar | ECE 2027 Batch
         </p>

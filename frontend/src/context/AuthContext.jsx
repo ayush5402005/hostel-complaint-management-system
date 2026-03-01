@@ -12,25 +12,38 @@ export const AuthProvider = ({ children }) => {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload.exp * 1000 > Date.now()) {
-          setUser({ email: payload.sub, role: payload.role });
+          setUser({
+            email: payload.sub,
+            role: payload.role,
+            name: localStorage.getItem('name') || '',
+          });
         } else {
           localStorage.removeItem('token');
+          localStorage.removeItem('name');
         }
       } catch {
         localStorage.removeItem('token');
+        localStorage.removeItem('name');
       }
     }
     setLoading(false);
   }, []);
 
-  const login = (token) => {
+  // ✅ Accept name + role from login response
+  const login = (token, name, role) => {
     localStorage.setItem('token', token);
+    localStorage.setItem('name', name);
     const payload = JSON.parse(atob(token.split('.')[1]));
-    setUser({ email: payload.sub, role: payload.role });
+    setUser({
+      email: payload.sub,
+      role: role || payload.role,
+      name: name || '',
+    });
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('name');
     setUser(null);
   };
 

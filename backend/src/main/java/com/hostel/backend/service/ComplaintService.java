@@ -20,17 +20,22 @@ import java.util.List;
 @Service
 public class ComplaintService {
 
-    private final ComplaintRepository complaintRepository;
-    private final UserRepository userRepository;
-    private final NotificationService notificationService;
+    private final ComplaintRepository      complaintRepository;
+    private final UserRepository           userRepository;
+    private final NotificationService      notificationService;
+    private final ComplaintAuditLogService auditLogService;
 
     public ComplaintService(ComplaintRepository complaintRepository,
                             UserRepository userRepository,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            ComplaintAuditLogService auditLogService) {
         this.complaintRepository = complaintRepository;
         this.userRepository      = userRepository;
         this.notificationService = notificationService;
+        this.auditLogService     = auditLogService;
     }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
 
     private User getUser(String email) {
         return userRepository.findByEmail(email)
@@ -40,6 +45,10 @@ public class ComplaintService {
     private Complaint getComplaint(Long id) {
         return complaintRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Complaint not found: " + id));
+    }
+
+    private boolean isStaff(Role role) {
+        return role == Role.ADMIN || role == Role.WARDEN || role == Role.CARETAKER;
     }
 
     private UserSummaryDTO toUserSummary(User user) {
@@ -56,23 +65,28 @@ public class ComplaintService {
                 .build();
     }
 
-    private ComplaintResponse toResponse(Complaint complaint) {
+    private ComplaintResponse toResponse(Complaint c) {
         return ComplaintResponse.builder()
-                .id(complaint.getId())
-                .title(complaint.getTitle())
-                .description(complaint.getDescription())
-                .category(complaint.getCategory())
-                .priority(complaint.getPriority())
-                .status(complaint.getStatus())
-                .issuePhotoUrl(complaint.getIssuePhotoUrl())
-                .resolvedPhotoUrl(complaint.getResolvedPhotoUrl())
-                .rejectionReason(complaint.getRejectionReason())
-                .student(toUserSummary(complaint.getStudent()))
-                .assignedWorker(toUserSummary(complaint.getAssignedWorker()))
-                .createdAt(complaint.getCreatedAt())
-                .updatedAt(complaint.getUpdatedAt())
+                .id(c.getId())
+                .title(c.getTitle())
+                .description(c.getDescription())
+                .category(c.getCategory())
+                .priority(c.getPriority())
+                .status(c.getStatus())
+                .issuePhotoUrl(c.getIssuePhotoUrl())
+                .resolvedPhotoUrl(c.getResolvedPhotoUrl())
+                .rejectionReason(c.getRejectionReason())
+                .rating(c.getRating())
+                .overdue(c.isOverdue())
+                .escalated(c.isEscalated())
+                .student(toUserSummary(c.getStudent()))
+                .assignedWorker(toUserSummary(c.getAssignedWorker()))
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
                 .build();
     }
+
+    // ─── Create ─────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse createComplaint(String email, ComplaintRequest request) {
@@ -91,9 +105,13 @@ public class ComplaintService {
                 .build();
         Complaint saved = complaintRepository.save(complaint);
 
-        // Notify all wardens + caretakers
+        auditLogService.log(saved.getId(), user,
+                null, ComplaintStatus.CREATED.name(),
+                "Complaint filed by student");
+
         List<User> staff = userRepository.findByRole(Role.WARDEN);
         staff.addAll(userRepository.findByRole(Role.CARETAKER));
+        staff.addAll(userRepository.findByRole(Role.ADMIN));
         staff.forEach(s -> notificationService.sendNotification(s,
                 user.getName() + " filed a new complaint: " + saved.getTitle(),
                 "COMPLAINT_CREATED"));
@@ -101,12 +119,13 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
+    // ─── Assign ─────────────────────────────────────────────────────────────
+
     @Transactional
     public ComplaintResponse assignWorker(Long complaintId, Long workerId, String email) {
         User assignedBy = getUser(email);
-        if (assignedBy.getRole() != Role.CARETAKER &&
-                assignedBy.getRole() != Role.WARDEN) {
-            throw new UnauthorizedException("Only caretaker or warden can assign worker");
+        if (!isStaff(assignedBy.getRole())) {
+            throw new UnauthorizedException("Only admin, caretaker or warden can assign worker");
         }
         Complaint complaint = getComplaint(complaintId);
         User worker = userRepository.findById(workerId)
@@ -114,11 +133,16 @@ public class ComplaintService {
         if (worker.getRole() != Role.WORKER) {
             throw new UnauthorizedException("Assigned user is not a worker");
         }
+
+        String prevStatus = complaint.getStatus().name();
         complaint.setAssignedWorker(worker);
         complaint.setStatus(ComplaintStatus.ASSIGNED);
         Complaint saved = complaintRepository.save(complaint);
 
-        // Notify worker + student
+        auditLogService.log(saved.getId(), assignedBy,
+                prevStatus, ComplaintStatus.ASSIGNED.name(),
+                "Assigned to worker: " + worker.getName());
+
         notificationService.sendNotification(worker,
                 "You have been assigned complaint: " + saved.getTitle(),
                 "COMPLAINT_ASSIGNED");
@@ -129,12 +153,13 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
+    // ─── Reassign ───────────────────────────────────────────────────────────
+
     @Transactional
     public ComplaintResponse reassignWorker(Long complaintId, Long newWorkerId, String email) {
         User assignedBy = getUser(email);
-        if (assignedBy.getRole() != Role.CARETAKER &&
-                assignedBy.getRole() != Role.WARDEN) {
-            throw new UnauthorizedException("Only caretaker or warden can reassign worker");
+        if (!isStaff(assignedBy.getRole())) {
+            throw new UnauthorizedException("Only admin, caretaker or warden can reassign worker");
         }
         Complaint complaint = getComplaint(complaintId);
         User newWorker = userRepository.findById(newWorkerId)
@@ -142,12 +167,19 @@ public class ComplaintService {
         if (newWorker.getRole() != Role.WORKER) {
             throw new UnauthorizedException("Assigned user is not a worker");
         }
-        User oldWorker = complaint.getAssignedWorker();
+
+        User oldWorker    = complaint.getAssignedWorker();
+        String prevStatus = complaint.getStatus().name();
         complaint.setAssignedWorker(newWorker);
         complaint.setStatus(ComplaintStatus.ASSIGNED);
         Complaint saved = complaintRepository.save(complaint);
 
-        // Notify old worker, new worker, student
+        auditLogService.log(saved.getId(), assignedBy,
+                prevStatus, ComplaintStatus.ASSIGNED.name(),
+                "Reassigned from " +
+                (oldWorker != null ? oldWorker.getName() : "nobody") +
+                " to " + newWorker.getName());
+
         if (oldWorker != null) {
             notificationService.sendNotification(oldWorker,
                     "Complaint '" + saved.getTitle() + "' has been reassigned from you",
@@ -157,18 +189,19 @@ public class ComplaintService {
                 "Complaint '" + saved.getTitle() + "' has been reassigned to you",
                 "COMPLAINT_ASSIGNED");
         notificationService.sendNotification(saved.getStudent(),
-                "Your complaint '" + saved.getTitle() + "' has been reassigned to " + newWorker.getName(),
+                "Your complaint '" + saved.getTitle() + "' reassigned to " + newWorker.getName(),
                 "COMPLAINT_ASSIGNED");
 
         return toResponse(saved);
     }
 
+    // ─── Reject ─────────────────────────────────────────────────────────────
+
     @Transactional
     public ComplaintResponse rejectComplaint(Long complaintId, String reason, String email) {
         User rejectedBy = getUser(email);
-        if (rejectedBy.getRole() != Role.CARETAKER &&
-                rejectedBy.getRole() != Role.WARDEN) {
-            throw new UnauthorizedException("Only caretaker or warden can reject complaints");
+        if (!isStaff(rejectedBy.getRole())) {
+            throw new UnauthorizedException("Only admin, caretaker or warden can reject complaints");
         }
         if (reason == null || reason.trim().isEmpty()) {
             throw new RuntimeException("Rejection reason is required");
@@ -177,17 +210,24 @@ public class ComplaintService {
         if (complaint.getStatus() == ComplaintStatus.CLOSED) {
             throw new RuntimeException("Cannot reject a closed complaint");
         }
+
+        String prevStatus = complaint.getStatus().name();
         complaint.setStatus(ComplaintStatus.REJECTED);
         complaint.setRejectionReason(reason.trim());
         Complaint saved = complaintRepository.save(complaint);
 
-        // Notify student
+        auditLogService.log(saved.getId(), rejectedBy,
+                prevStatus, ComplaintStatus.REJECTED.name(),
+                "Rejected. Reason: " + reason.trim());
+
         notificationService.sendNotification(saved.getStudent(),
                 "Your complaint '" + saved.getTitle() + "' was rejected. Reason: " + reason,
                 "STATUS_UPDATED");
 
         return toResponse(saved);
     }
+
+    // ─── Update Status (worker) ──────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse updateStatus(Long complaintId,
@@ -202,13 +242,20 @@ public class ComplaintService {
                 !complaint.getAssignedWorker().getId().equals(worker.getId())) {
             throw new UnauthorizedException("You are not assigned to this complaint");
         }
+
+        String prevStatus = complaint.getStatus().name();
         complaint.setStatus(request.getStatus());
         if (request.getResolvedPhotoUrl() != null) {
             complaint.setResolvedPhotoUrl(request.getResolvedPhotoUrl());
         }
         Complaint saved = complaintRepository.save(complaint);
 
-        // Notify student on progress + resolution
+        auditLogService.log(saved.getId(), worker,
+                prevStatus, request.getStatus().name(),
+                request.getStatus() == ComplaintStatus.IN_PROGRESS
+                        ? "Worker started working"
+                        : "Worker marked as resolved");
+
         if (request.getStatus() == ComplaintStatus.IN_PROGRESS) {
             notificationService.sendNotification(saved.getStudent(),
                     "Work has started on your complaint: " + saved.getTitle(),
@@ -222,8 +269,12 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
+    // ─── Close + Rate ────────────────────────────────────────────────────────
+
     @Transactional
-    public ComplaintResponse closeComplaint(Long complaintId, String email) {
+    public ComplaintResponse closeComplaint(Long complaintId,
+                                            CloseComplaintRequest request,
+                                            String email) {
         User student = getUser(email);
         if (student.getRole() != Role.STUDENT) {
             throw new UnauthorizedException("Only student can close complaint");
@@ -235,9 +286,25 @@ public class ComplaintService {
         if (complaint.getStatus() != ComplaintStatus.RESOLVED) {
             throw new RuntimeException("Complaint must be RESOLVED before closing");
         }
+
+        if (request != null && request.getRating() != null) {
+            int r = request.getRating();
+            if (r < 1 || r > 5) throw new RuntimeException("Rating must be between 1 and 5");
+            complaint.setRating(r);
+        }
+
         complaint.setStatus(ComplaintStatus.CLOSED);
-        return toResponse(complaintRepository.save(complaint));
+        Complaint saved = complaintRepository.save(complaint);
+
+        auditLogService.log(saved.getId(), student,
+                ComplaintStatus.RESOLVED.name(), ComplaintStatus.CLOSED.name(),
+                "Closed by student" + (saved.getRating() != null
+                        ? " | Rating: " + saved.getRating() + "/5" : ""));
+
+        return toResponse(saved);
     }
+
+    // ─── Queries ────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<ComplaintResponse> getComplaintsByRole(String email, int page,
@@ -251,7 +318,7 @@ public class ComplaintService {
             case WORKER -> status != null
                     ? complaintRepository.findByAssignedWorkerAndStatus(user, status, pageable).map(this::toResponse)
                     : complaintRepository.findByAssignedWorker(user, pageable).map(this::toResponse);
-            case CARETAKER, WARDEN -> status != null
+            case ADMIN, CARETAKER, WARDEN -> status != null
                     ? complaintRepository.findByStatus(status, pageable).map(this::toResponse)
                     : complaintRepository.findAll(pageable).map(this::toResponse);
             default -> throw new UnauthorizedException("Invalid role for this operation");
@@ -275,11 +342,38 @@ public class ComplaintService {
         );
     }
 
+    // ✅ NEW — Worker dashboard stats
+    @Transactional(readOnly = true)
+    public WorkerDashboardStatsResponse getWorkerDashboardStats(String email) {
+        User worker = getUser(email);
+        if (worker.getRole() != Role.WORKER) {
+            throw new UnauthorizedException("Access denied");
+        }
+
+        long assigned   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.ASSIGNED);
+        long inProgress = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.IN_PROGRESS);
+        long resolved   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.RESOLVED);
+        long closed     = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.CLOSED);
+
+        List<Complaint> ratedComplaints = complaintRepository
+                .findByAssignedWorkerAndStatusAndRatingIsNotNull(worker, ComplaintStatus.CLOSED);
+        Double averageRating = null;
+        if (!ratedComplaints.isEmpty()) {
+            averageRating = ratedComplaints.stream()
+                    .mapToInt(Complaint::getRating)
+                    .average()
+                    .orElse(0.0);
+            averageRating = Math.round(averageRating * 10.0) / 10.0;
+        }
+
+        return new WorkerDashboardStatsResponse(assigned, inProgress, resolved, closed, averageRating);
+    }
+
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(String email) {
         User user = getUser(email);
-        if (user.getRole() != Role.CARETAKER && user.getRole() != Role.WARDEN) {
-            throw new UnauthorizedException("Access denied: Dashboard only for Caretaker/Warden");
+        if (!isStaff(user.getRole())) {
+            throw new UnauthorizedException("Access denied");
         }
         return new DashboardStatsResponse(
                 complaintRepository.count(),
