@@ -8,15 +8,21 @@ const roleColors = {
   WORKER:    'bg-green-100 text-green-700',
   CARETAKER: 'bg-yellow-100 text-yellow-700',
   WARDEN:    'bg-purple-100 text-purple-700',
+  ADMIN:     'bg-red-100 text-red-700',
 };
 
-const CommentSection = ({ complaintId }) => {
-  const { user }        = useAuth();
-  const { showToast }   = useToast();
+// ✅ Accept complaintStatus prop
+const CommentSection = ({ complaintId, complaintStatus }) => {
+  const { user }      = useAuth();
+  const { showToast } = useToast();
+
   const [comments, setComments] = useState([]);
   const [message, setMessage]   = useState('');
   const [loading, setLoading]   = useState(false);
   const bottomRef               = useRef();
+
+  // ✅ Disable input when complaint is closed or rejected
+  const isClosed = ['CLOSED', 'REJECTED'].includes(complaintStatus);
 
   const fetchComments = async () => {
     try {
@@ -36,7 +42,7 @@ const CommentSection = ({ complaintId }) => {
   }, [comments]);
 
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || isClosed) return;
     setLoading(true);
     try {
       await api.post(`/complaints/${complaintId}/comments`, { message });
@@ -92,24 +98,42 @@ const CommentSection = ({ complaintId }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-        <input
-          type="text"
-          placeholder="Type a message... (Enter to send)"
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading || !message.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-40"
-        >
-          {loading ? '...' : 'Send'}
-        </button>
-      </div>
+      {/* ✅ Input — disabled + banner when CLOSED or REJECTED */}
+      {isClosed ? (
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
+          <span className="text-lg">
+            {complaintStatus === 'CLOSED' ? '🔒' : '❌'}
+          </span>
+          <p className="text-sm text-gray-400 font-medium">
+            {complaintStatus === 'CLOSED'
+              ? 'This complaint is closed. Discussion is locked.'
+              : 'This complaint is rejected. Discussion is locked.'}
+          </p>
+        </div>
+      ) : (
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+          <input
+            type="text"
+            placeholder="Type a message... (Enter to send)"
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <button
+            onClick={handleSend}
+            disabled={loading || !message.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-40"
+          >
+            {loading ? '...' : 'Send'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

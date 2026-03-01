@@ -525,26 +525,48 @@ const ComplaintList = () => {
                           className="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg transition">
                           ✓ Mark Resolved
                         </button>
-                        {showResolveBox[c.id] && (
-                          <div className="flex flex-col gap-2 mt-1 p-3 bg-green-50 border border-green-200 rounded-xl w-52">
-                            <p className="text-xs font-semibold text-green-700">Upload proof photo (optional)</p>
-                            <input type="file" accept="image/*"
-                              onChange={e => handlePhotoUpload(c.id, e.target.files[0])}
-                              className="text-xs text-gray-600"
-                            />
-                            {uploadingPhoto === c.id && (
-                              <p className="text-xs text-green-600">Uploading...</p>
-                            )}
-                            {resolvePhoto[c.id] && (
-                              <p className="text-xs text-green-600 font-medium">✅ Photo ready</p>
-                            )}
-                            <button onClick={() => handleMarkResolved(c.id)}
-                              disabled={actionLoading === c.id || uploadingPhoto === c.id}
-                              className="bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 font-medium">
-                              {actionLoading === c.id ? 'Saving...' : 'Confirm Resolved'}
-                            </button>
-                          </div>
-                        )}
+                       {showResolveBox[c.id] && (
+  <div className="flex flex-col gap-2 mt-1 p-3 bg-green-50 border border-green-200 rounded-xl w-56">
+    <p className="text-xs font-semibold text-green-700">Upload proof photo (optional)</p>
+
+    {/* ✅ Styled file upload button */}
+    <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition
+      ${resolvePhoto[c.id]
+        ? 'border-green-400 bg-green-100'
+        : 'border-green-300 bg-white hover:bg-green-50'}`}>
+      <span className="text-xl">
+        {resolvePhoto[c.id] ? '✅' : uploadingPhoto === c.id ? '⏳' : '📷'}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-green-700">
+          {resolvePhoto[c.id]
+            ? 'Photo uploaded!'
+            : uploadingPhoto === c.id
+            ? 'Uploading...'
+            : 'Choose photo'}
+        </p>
+        <p className="text-xs text-gray-400">
+          {resolvePhoto[c.id]
+            ? resolvePhoto[c.id].split('/').pop()
+            : 'JPG, PNG'}
+        </p>
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => handlePhotoUpload(c.id, e.target.files[0])}
+      />
+    </label>
+
+    <button onClick={() => handleMarkResolved(c.id)}
+      disabled={actionLoading === c.id || uploadingPhoto === c.id}
+      className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg disabled:opacity-50 font-medium transition">
+      {actionLoading === c.id ? 'Saving...' : 'Confirm Resolved'}
+    </button>
+  </div>
+)}
+
                       </div>
                     )}
 

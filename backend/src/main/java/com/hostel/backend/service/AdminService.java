@@ -1,7 +1,6 @@
 package com.hostel.backend.service;
 
 import com.hostel.backend.dto.*;
-import com.hostel.backend.entity.Complaint;
 import com.hostel.backend.entity.User;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.enums.Role;
@@ -23,8 +22,8 @@ public class AdminService {
     public AdminService(UserRepository userRepository,
                         PasswordEncoder passwordEncoder,
                         ComplaintRepository complaintRepository) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.userRepository      = userRepository;
+        this.passwordEncoder     = passwordEncoder;
         this.complaintRepository = complaintRepository;
     }
 
@@ -67,11 +66,11 @@ public class AdminService {
     public User updateUser(Long id, UpdateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        if (request.getName() != null) user.setName(request.getName());
-        if (request.getPhoneNumber() != null) user.setPhoneNumber(request.getPhoneNumber());
-        if (request.getDepartment() != null) user.setDepartment(request.getDepartment());
-        if (request.getHostelBlock() != null) user.setHostelBlock(request.getHostelBlock());
-        if (request.getRoomNumber() != null) user.setRoomNumber(request.getRoomNumber());
+        if (request.getName() != null)        user.setName(request.getName());
+        if (request.getPhoneNumber() != null)  user.setPhoneNumber(request.getPhoneNumber());
+        if (request.getDepartment() != null)   user.setDepartment(request.getDepartment());
+        if (request.getHostelBlock() != null)  user.setHostelBlock(request.getHostelBlock());
+        if (request.getRoomNumber() != null)   user.setRoomNumber(request.getRoomNumber());
         return userRepository.save(user);
     }
 
@@ -108,18 +107,12 @@ public class AdminService {
 
     private AdminUserResponse mapToAdminUserResponse(User user) {
 
-        // ✅ Calculate average rating for WORKER only
+        // ✅ Use @Query method directly — no manual list fetching
         Double averageRating = null;
         if (user.getRole() == Role.WORKER) {
-            List<Complaint> ratedComplaints = complaintRepository
-                    .findByAssignedWorkerAndStatusAndRatingIsNotNull(user, ComplaintStatus.CLOSED);
-            if (!ratedComplaints.isEmpty()) {
-                averageRating = ratedComplaints.stream()
-                        .mapToInt(Complaint::getRating)
-                        .average()
-                        .orElse(0.0);
-                // Round to 1 decimal place
-                averageRating = Math.round(averageRating * 10.0) / 10.0;
+            Double raw = complaintRepository.findAverageRatingByWorker(user);
+            if (raw != null) {
+                averageRating = Math.round(raw * 10.0) / 10.0;
             }
         }
 
@@ -134,7 +127,7 @@ public class AdminService {
                 .roomNumber(user.getRoomNumber())
                 .department(user.getDepartment())
                 .active(user.isActive())
-                .averageRating(averageRating)   // ✅ NEW
+                .averageRating(averageRating)
                 .build();
     }
 }

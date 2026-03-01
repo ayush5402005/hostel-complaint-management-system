@@ -4,6 +4,7 @@ import com.hostel.backend.dto.*;
 import com.hostel.backend.entity.User;
 import com.hostel.backend.enums.Role;
 import com.hostel.backend.service.AdminService;
+import com.hostel.backend.service.ComplaintService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -16,12 +17,15 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
+    private final ComplaintService complaintService; // ✅ Added field
 
-    public AdminController(AdminService adminService) {
-        this.adminService = adminService;
+    // ✅ Both services injected via constructor
+    public AdminController(AdminService adminService,
+                           ComplaintService complaintService) {
+        this.adminService      = adminService;
+        this.complaintService  = complaintService;
     }
 
-    // ✅ Only ADMIN + WARDEN can create WARDEN
     @PostMapping("/create-warden")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> createWarden(@RequestBody RegisterRequest request) {
@@ -29,7 +33,6 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ Only ADMIN + WARDEN can create CARETAKER
     @PostMapping("/create-caretaker")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> createCaretaker(@RequestBody RegisterRequest request) {
@@ -37,7 +40,6 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ ADMIN + WARDEN + CARETAKER can create WORKER
     @PostMapping("/create-worker")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<?> createWorker(@RequestBody RegisterRequest request) {
@@ -45,28 +47,24 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ Get all users — ADMIN only
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<AdminUserResponse>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
     }
 
-    // ✅ Get users by role — ADMIN + WARDEN + CARETAKER
     @GetMapping("/users/role/{role}")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<List<AdminUserResponse>> getUsersByRole(@PathVariable Role role) {
         return ResponseEntity.ok(adminService.getUsersByRole(role));
     }
 
-    // ✅ Get workers list — for complaint assignment
     @GetMapping("/workers")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<List<AdminUserResponse>> getWorkers() {
         return ResponseEntity.ok(adminService.getUsersByRole(Role.WORKER));
     }
 
-    // ✅ Update user — ADMIN + WARDEN
     @PutMapping("/users/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> updateUser(@PathVariable Long id,
@@ -75,7 +73,6 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ Deactivate user — ADMIN + WARDEN
     @PatchMapping("/users/{id}/deactivate")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
@@ -83,7 +80,6 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "User deactivated successfully"));
     }
 
-    // ✅ Activate user — ADMIN + WARDEN
     @PatchMapping("/users/{id}/activate")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> activateUser(@PathVariable Long id) {
@@ -91,7 +87,6 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "User activated successfully"));
     }
 
-    // ✅ Delete user permanently — ADMIN only
     @DeleteMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
@@ -99,10 +94,17 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 
-    // ✅ Dashboard stats — ADMIN + WARDEN + CARETAKER
     @GetMapping("/dashboard-stats")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<DashboardStatsResponse> getDashboardStats() {
         return ResponseEntity.ok(adminService.getDashboardStats());
+    }
+
+    // ✅ Worker stats — average rating + job counts
+    @GetMapping("/workers/{id}/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
+    public ResponseEntity<WorkerDashboardStatsResponse> getWorkerStats(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(complaintService.getWorkerStatsByAdmin(id));
     }
 }

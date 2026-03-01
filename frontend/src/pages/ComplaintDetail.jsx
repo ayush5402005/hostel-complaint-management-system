@@ -23,24 +23,21 @@ const priorityColors = {
 
 const statusTimeline = ['CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
-// ── ⭐ Star Rating Component ─────────────────────────────────────────────────
+// ── ⭐ Star Rating Component ──────────────────────────────────────────────────
 const StarRating = ({ value, onChange, readonly = false }) => (
   <div className="flex gap-1">
     {[1, 2, 3, 4, 5].map(star => (
-      <button
-        key={star}
-        type="button"
+      <button key={star} type="button"
         onClick={() => !readonly && onChange && onChange(star)}
-        className={`text-2xl transition ${readonly ? 'cursor-default' : 'cursor-pointer hover:scale-110'} 
-          ${star <= value ? 'text-yellow-400' : 'text-gray-300'}`}
-      >
+        className={`text-2xl transition ${readonly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}
+          ${star <= value ? 'text-yellow-400' : 'text-gray-300'}`}>
         ★
       </button>
     ))}
   </div>
 );
 
-// ── 📋 Audit Log Timeline ────────────────────────────────────────────────────
+// ── 📋 Audit Log Timeline ─────────────────────────────────────────────────────
 const AuditTimeline = ({ complaintId }) => {
   const [logs, setLogs]       = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +51,11 @@ const AuditTimeline = ({ complaintId }) => {
 
   const roleColor = (role) => {
     const map = {
-      STUDENT:    'bg-indigo-100 text-indigo-700',
-      WORKER:     'bg-green-100 text-green-700',
-      WARDEN:     'bg-purple-100 text-purple-700',
-      CARETAKER:  'bg-orange-100 text-orange-700',
+      STUDENT:   'bg-indigo-100 text-indigo-700',
+      WORKER:    'bg-green-100 text-green-700',
+      WARDEN:    'bg-purple-100 text-purple-700',
+      CARETAKER: 'bg-orange-100 text-orange-700',
+      ADMIN:     'bg-red-100 text-red-700',
     };
     return map[role] || 'bg-gray-100 text-gray-700';
   };
@@ -96,7 +94,6 @@ const AuditTimeline = ({ complaintId }) => {
     <div className="space-y-3">
       {logs.map((log, index) => (
         <div key={log.id} className="flex gap-3">
-          {/* Timeline line */}
           <div className="flex flex-col items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center text-sm flex-shrink-0">
               {statusIcon(log.toStatus)}
@@ -105,12 +102,9 @@ const AuditTimeline = ({ complaintId }) => {
               <div className="w-0.5 bg-gray-200 flex-1 mt-1 min-h-[20px]" />
             )}
           </div>
-          {/* Content */}
           <div className="pb-4 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-gray-800">
-                {log.changedByName}
-              </span>
+              <span className="text-sm font-semibold text-gray-800">{log.changedByName}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColor(log.changedByRole)}`}>
                 {log.changedByRole}
               </span>
@@ -123,9 +117,7 @@ const AuditTimeline = ({ complaintId }) => {
                 <span className="text-xs font-medium text-gray-600">{log.toStatus}</span>
               )}
             </div>
-            {log.note && (
-              <p className="text-xs text-gray-500 mt-0.5">{log.note}</p>
-            )}
+            {log.note && <p className="text-xs text-gray-500 mt-0.5">{log.note}</p>}
             <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.changedAt)}</p>
           </div>
         </div>
@@ -152,12 +144,14 @@ const ComplaintDetail = () => {
   const [showReassignBox, setShowReassignBox] = useState(false);
   const [reassignWorker, setReassignWorker]   = useState('');
 
-  // ⭐ Rating state
-  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  // ✅ Worker — resolve with photo
+  const [showResolveBox, setShowResolveBox]   = useState(false);
+  const [resolvePhotoUrl, setResolvePhotoUrl] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto]   = useState(false);
+
+  // ✅ Student — close with rating modal
+  const [showCloseModal, setShowCloseModal]   = useState(false);
   const [ratingValue, setRatingValue]         = useState(0);
-  const [ratingComment, setRatingComment]     = useState('');
-  const [ratingLoading, setRatingLoading]     = useState(false);
-  const [existingRating, setExistingRating]   = useState(null);
 
   const fetchComplaint = async () => {
     try {
@@ -170,18 +164,11 @@ const ComplaintDetail = () => {
     }
   };
 
-  const fetchRating = async () => {
-    try {
-      const res = await api.get(`/complaints/${id}/rating`);
-      if (res.data) setExistingRating(res.data);
-    } catch {}
-  };
-
   useEffect(() => {
     fetchComplaint();
-    fetchRating();
+    // ✅ Fixed endpoint
     if (['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role)) {
-      api.get('/users/workers')
+      api.get('/admin/workers')
         .then(res => setWorkers(res.data))
         .catch(() => {});
     }
@@ -233,50 +220,57 @@ const ComplaintDetail = () => {
     }
   };
 
-  const handleStatusUpdate = async (status) => {
+  // ✅ Worker — upload proof photo
+  const handlePhotoUpload = async (file) => {
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setResolvePhotoUrl(res.data.url);
+      showToast('Photo uploaded!', 'success');
+    } catch {
+      showToast('Failed to upload photo', 'error');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // ✅ Worker — mark resolved with optional photo
+  const handleMarkResolved = async () => {
     setActionLoading(true);
     try {
-      await api.put(`/complaints/${id}/status`, { status });
-      showToast(`Status updated to ${status.replace('_', ' ')}`, 'success');
+      await api.put(`/complaints/${id}/status`, {
+        status: 'RESOLVED',
+        resolvedPhotoUrl: resolvePhotoUrl || null,
+      });
+      showToast('Complaint marked as resolved!', 'success');
+      setShowResolveBox(false);
+      setResolvePhotoUrl(null);
       fetchComplaint();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to update status', 'error');
+      showToast(err.response?.data?.message || 'Failed to resolve', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleClose = async () => {
+  // ✅ Student — close with rating
+  const handleCloseWithRating = async () => {
     setActionLoading(true);
     try {
-      await api.put(`/complaints/${id}/close`);
-      showToast('Complaint closed! Please rate the resolution ⭐', 'success');
+      await api.put(`/complaints/${id}/close`, ratingValue > 0 ? { rating: ratingValue } : {});
+      showToast('Complaint closed successfully!', 'success');
+      setShowCloseModal(false);
+      setRatingValue(0);
       fetchComplaint();
-      // Show rating popup after close
-      setShowRatingPopup(true);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to close', 'error');
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  // ⭐ Submit rating
-  const handleSubmitRating = async () => {
-    if (ratingValue === 0) { showToast('Please select a star rating', 'warning'); return; }
-    setRatingLoading(true);
-    try {
-      await api.post(`/complaints/${id}/rating`, {
-        rating: ratingValue,
-        comment: ratingComment
-      });
-      showToast('Rating submitted! Thank you ⭐', 'success');
-      setShowRatingPopup(false);
-      fetchRating();
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to submit rating', 'error');
-    } finally {
-      setRatingLoading(false);
     }
   };
 
@@ -319,38 +313,36 @@ const ComplaintDetail = () => {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* ⭐ Rating Popup Modal */}
-      {showRatingPopup && (
+      {/* ✅ Close + Rate Modal */}
+      {showCloseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="text-center mb-4">
               <p className="text-3xl mb-2">⭐</p>
-              <h3 className="text-lg font-bold text-gray-800">Rate the Resolution</h3>
-              <p className="text-sm text-gray-500 mt-1">How satisfied are you with the work done?</p>
+              <h3 className="text-lg font-bold text-gray-800">Close & Rate</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                #{complaint.id} — {complaint.title}
+              </p>
             </div>
-            <div className="flex justify-center mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">
+              Rate the work done: <span className="text-gray-400">(optional)</span>
+            </p>
+            <div className="flex justify-center mb-2">
               <StarRating value={ratingValue} onChange={setRatingValue} />
             </div>
-            <textarea
-              rows={3}
-              placeholder="Optional: Leave a comment about the work..."
-              value={ratingComment}
-              onChange={e => setRatingComment(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none mb-4"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowRatingPopup(false)}
-                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
-              >
-                Skip
+            {ratingValue > 0 && (
+              <p className="text-xs text-yellow-600 text-center font-medium mb-4">
+                {ratingValue} star{ratingValue !== 1 ? 's' : ''} selected
+              </p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setShowCloseModal(false); setRatingValue(0); }}
+                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition">
+                Cancel
               </button>
-              <button
-                onClick={handleSubmitRating}
-                disabled={ratingLoading || ratingValue === 0}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50"
-              >
-                {ratingLoading ? 'Submitting...' : 'Submit Rating'}
+              <button onClick={handleCloseWithRating} disabled={actionLoading}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50">
+                {actionLoading ? 'Closing...' : '✓ Close Complaint'}
               </button>
             </div>
           </div>
@@ -376,7 +368,6 @@ const ComplaintDetail = () => {
                 <div>
                   <p className="text-xs text-gray-400 font-medium mb-1">COMPLAINT #{complaint.id}</p>
                   <h1 className="text-xl font-bold text-gray-800">{complaint.title}</h1>
-                  {/* ✅ OVERDUE + ESCALATED badges */}
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {complaint.overdue && (
                       <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
@@ -430,29 +421,12 @@ const ComplaintDetail = () => {
               </div>
             )}
 
-            {/* ⭐ Existing Rating Box (shown if already rated) */}
-            {complaint.status === 'CLOSED' && existingRating && (
+            {/* ✅ Rating badge — show if closed with rating */}
+            {complaint.status === 'CLOSED' && complaint.rating && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Your Rating</p>
-                <StarRating value={existingRating.rating} readonly />
-                {existingRating.comment && (
-                  <p className="text-sm text-gray-600 mt-2 italic">"{existingRating.comment}"</p>
-                )}
-              </div>
-            )}
-
-            {/* ⭐ Rate Now button (closed + no rating yet + student) */}
-            {complaint.status === 'CLOSED' && !existingRating &&
-              user.role === 'STUDENT' && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Rate the Resolution</p>
-                <p className="text-sm text-gray-500 mb-3">You haven't rated this complaint yet.</p>
-                <button
-                  onClick={() => setShowRatingPopup(true)}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                >
-                  ⭐ Rate Now
-                </button>
+                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Student Rating</p>
+                <StarRating value={complaint.rating} readonly />
+                <p className="text-xs text-gray-500 mt-1">{complaint.rating}/5 stars</p>
               </div>
             )}
 
@@ -525,10 +499,13 @@ const ComplaintDetail = () => {
               </div>
             </div>
 
-            {/* Comment Section */}
-            <CommentSection complaintId={id} />
+            {/* ✅ Comment Section — pass status to disable when CLOSED */}
+            <CommentSection
+              complaintId={id}
+              complaintStatus={complaint.status}
+            />
 
-            {/* ✅ Audit Log Timeline */}
+            {/* Audit Log */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
               <h2 className="text-sm font-semibold text-gray-500 uppercase mb-4">
                 📋 Activity History
@@ -581,13 +558,11 @@ const ComplaintDetail = () => {
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
               <h2 className="text-sm font-semibold text-gray-500 uppercase">Actions</h2>
 
-              {/* WARDEN/CARETAKER — Assign Worker */}
+              {/* STAFF — Assign */}
               {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
                 <div className="space-y-2">
-                  <select value={selectedWorker}
-                    onChange={e => setSelectedWorker(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
+                  <select value={selectedWorker} onChange={e => setSelectedWorker(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Select Worker</option>
                     {workers.map(w => (
                       <option key={w.id} value={w.id}>
@@ -602,22 +577,18 @@ const ComplaintDetail = () => {
                 </div>
               )}
 
-              {/* WARDEN/CARETAKER — Reassign Worker */}
+              {/* STAFF — Reassign */}
               {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) &&
                 ['ASSIGNED', 'IN_PROGRESS'].includes(complaint.status) && (
                 <div className="space-y-2">
-                  <button
-                    onClick={() => setShowReassignBox(r => !r)}
-                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-sm font-medium transition"
-                  >
+                  <button onClick={() => setShowReassignBox(r => !r)}
+                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-sm font-medium transition">
                     🔄 Reassign Worker
                   </button>
                   {showReassignBox && (
                     <div className="space-y-2 pt-1">
-                      <select value={reassignWorker}
-                        onChange={e => setReassignWorker(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
+                      <select value={reassignWorker} onChange={e => setReassignWorker(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select New Worker</option>
                         {workers.map(w => (
                           <option key={w.id} value={w.id}>
@@ -634,20 +605,16 @@ const ComplaintDetail = () => {
                 </div>
               )}
 
-              {/* WARDEN/CARETAKER — Reject Complaint */}
+              {/* STAFF — Reject */}
               {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
                 <div className="space-y-2">
-                  <button
-                    onClick={() => setShowRejectBox(r => !r)}
-                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium transition"
-                  >
+                  <button onClick={() => setShowRejectBox(r => !r)}
+                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium transition">
                     ❌ Reject Complaint
                   </button>
                   {showRejectBox && (
                     <div className="space-y-2 pt-1">
-                      <textarea
-                        rows={3}
-                        placeholder="Enter reason for rejection..."
+                      <textarea rows={3} placeholder="Enter reason for rejection..."
                         value={rejectReason}
                         onChange={e => setRejectReason(e.target.value)}
                         className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
@@ -661,33 +628,87 @@ const ComplaintDetail = () => {
                 </div>
               )}
 
-              {/* WORKER — Start Work */}
+              {/* ✅ WORKER — Start Work */}
               {user.role === 'WORKER' && complaint.status === 'ASSIGNED' && (
-                <button onClick={() => handleStatusUpdate('IN_PROGRESS')}
+                <button onClick={async () => {
+                    setActionLoading(true);
+                    try {
+                      await api.put(`/complaints/${id}/status`, { status: 'IN_PROGRESS' });
+                      showToast('Status updated to IN PROGRESS', 'success');
+                      fetchComplaint();
+                    } catch (err) {
+                      showToast(err.response?.data?.message || 'Failed', 'error');
+                    } finally { setActionLoading(false); }
+                  }}
                   disabled={actionLoading}
                   className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
                   {actionLoading ? 'Updating...' : '▶ Start Work'}
                 </button>
               )}
 
-              {/* WORKER — Mark Resolved */}
+              {/* ✅ WORKER — Mark Resolved + Upload Photo */}
               {user.role === 'WORKER' && complaint.status === 'IN_PROGRESS' && (
-                <button onClick={() => handleStatusUpdate('RESOLVED')}
-                  disabled={actionLoading}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                  {actionLoading ? 'Updating...' : '✓ Mark as Resolved'}
-                </button>
+                <div className="space-y-2">
+                  <button onClick={() => setShowResolveBox(r => !r)}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-medium transition">
+                    ✓ Mark as Resolved
+                  </button>
+                 {showResolveBox && (
+  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+    <p className="text-xs font-semibold text-green-700">
+      Upload proof photo (optional)
+    </p>
+
+    {/* ✅ Styled file upload button */}
+    <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
+      ${resolvePhotoUrl
+        ? 'border-green-400 bg-green-100'
+        : 'border-green-300 bg-white hover:bg-green-50'}`}>
+      <span className="text-2xl">
+        {resolvePhotoUrl ? '✅' : uploadingPhoto ? '⏳' : '📷'}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-green-700">
+          {resolvePhotoUrl
+            ? 'Photo uploaded!'
+            : uploadingPhoto
+            ? 'Uploading...'
+            : 'Choose photo'}
+        </p>
+        <p className="text-xs text-gray-400 truncate">
+          {resolvePhotoUrl
+            ? resolvePhotoUrl.split('/').pop()
+            : 'JPG, PNG up to 10MB'}
+        </p>
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => handlePhotoUpload(e.target.files[0])}
+      />
+    </label>
+
+    <button onClick={handleMarkResolved}
+      disabled={actionLoading || uploadingPhoto}
+      className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-50">
+      {actionLoading ? 'Saving...' : 'Confirm Resolved'}
+    </button>
+  </div>
+)}
+
+                </div>
               )}
 
-              {/* STUDENT — Close */}
+              {/* ✅ STUDENT — Close + Rate */}
               {user.role === 'STUDENT' && complaint.status === 'RESOLVED' && (
-                <button onClick={handleClose} disabled={actionLoading}
+                <button onClick={() => setShowCloseModal(true)} disabled={actionLoading}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                  {actionLoading ? 'Closing...' : '✓ Close Complaint'}
+                  ✓ Close & Rate
                 </button>
               )}
 
-              {/* No action available */}
+              {/* No action */}
               {['CLOSED', 'REJECTED'].includes(complaint.status) && (
                 <p className="text-sm text-gray-400 text-center py-2">
                   {complaint.status === 'CLOSED' ? '✅ Complaint closed' : '❌ Complaint rejected'}
@@ -700,7 +721,6 @@ const ComplaintDetail = () => {
         <p className="text-center text-xs text-gray-400 mt-10">
           Developed by Ayush Kumar | ECE 2027 Batch
         </p>
-
       </div>
     </div>
   );

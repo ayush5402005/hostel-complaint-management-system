@@ -342,7 +342,7 @@ public class ComplaintService {
         );
     }
 
-    // ✅ NEW — Worker dashboard stats
+    // ✅ Worker dashboard stats — uses @Query AVG, no list fetch
     @Transactional(readOnly = true)
     public WorkerDashboardStatsResponse getWorkerDashboardStats(String email) {
         User worker = getUser(email);
@@ -355,16 +355,9 @@ public class ComplaintService {
         long resolved   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.RESOLVED);
         long closed     = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.CLOSED);
 
-        List<Complaint> ratedComplaints = complaintRepository
-                .findByAssignedWorkerAndStatusAndRatingIsNotNull(worker, ComplaintStatus.CLOSED);
-        Double averageRating = null;
-        if (!ratedComplaints.isEmpty()) {
-            averageRating = ratedComplaints.stream()
-                    .mapToInt(Complaint::getRating)
-                    .average()
-                    .orElse(0.0);
-            averageRating = Math.round(averageRating * 10.0) / 10.0;
-        }
+        // ✅ Fixed — use @Query method, no list fetching
+        Double raw = complaintRepository.findAverageRatingByWorker(worker);
+        Double averageRating = raw != null ? Math.round(raw * 10.0) / 10.0 : null;
 
         return new WorkerDashboardStatsResponse(assigned, inProgress, resolved, closed, averageRating);
     }
@@ -395,5 +388,23 @@ public class ComplaintService {
             throw new UnauthorizedException("Access denied");
         }
         return toResponse(complaint);
+    }
+
+    // ─── Worker Stats by Admin ───────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public WorkerDashboardStatsResponse getWorkerStatsByAdmin(Long workerId) {
+        User worker = userRepository.findById(workerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Worker not found"));
+
+        long assigned   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.ASSIGNED);
+        long inProgress = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.IN_PROGRESS);
+        long resolved   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.RESOLVED);
+        long closed     = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.CLOSED);
+
+        Double raw = complaintRepository.findAverageRatingByWorker(worker);
+        Double averageRating = raw != null ? Math.round(raw * 10.0) / 10.0 : null;
+
+        return new WorkerDashboardStatsResponse(assigned, inProgress, resolved, closed, averageRating);
     }
 }
