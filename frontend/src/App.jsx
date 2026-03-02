@@ -14,7 +14,7 @@ import ProfilePage from './pages/ProfilePage';
 // ✅ NEW — Admin pages
 import UserManagement from './pages/admin/UserManagement';
 import CreateUser from './pages/admin/CreateUser';
-
+import NoticeDetailPage from './pages/NoticeDetailPage';
 function App() {
   return (
     <ToastProvider>
@@ -62,6 +62,9 @@ function App() {
 
             <Route path="/"  element={<Navigate to="/dashboard" replace />} />
             <Route path="*"  element={<Navigate to="/dashboard" replace />} />
+          <Route path="/notices/:id" element={
+  <ProtectedRoute><NoticeDetailPage /></ProtectedRoute>
+} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

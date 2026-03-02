@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 public class NoticeService {
 
     private final NoticeRepository noticeRepository;
-    private final UserRepository userRepository;
+    private final UserRepository   userRepository;
 
     public NoticeService(NoticeRepository noticeRepository,
                          UserRepository userRepository) {
@@ -29,8 +29,12 @@ public class NoticeService {
     @Transactional
     public NoticeResponse createNotice(String email, NoticeRequest request) {
         User user = getUser(email);
-        if (user.getRole() != Role.WARDEN && user.getRole() != Role.CARETAKER) {
-            throw new UnauthorizedException("Only warden or caretaker can post notices");
+
+        // ✅ Added ADMIN role
+        if (user.getRole() != Role.ADMIN &&
+            user.getRole() != Role.WARDEN &&
+            user.getRole() != Role.CARETAKER) {
+            throw new UnauthorizedException("Only admin, warden or caretaker can post notices");
         }
         if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
             throw new RuntimeException("Title is required");
@@ -38,11 +42,14 @@ public class NoticeService {
         if (request.getContent() == null || request.getContent().trim().isEmpty()) {
             throw new RuntimeException("Content is required");
         }
+
         Notice notice = Notice.builder()
                 .title(request.getTitle().trim())
                 .content(request.getContent().trim())
+                .imageUrl(request.getImageUrl())  // ✅ NEW
                 .postedBy(user)
                 .build();
+
         return toResponse(noticeRepository.save(notice));
     }
 
@@ -52,11 +59,21 @@ public class NoticeService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    // ✅ NEW — get single notice by id
+    @Transactional(readOnly = true)
+    public NoticeResponse getNoticeById(Long id) {
+        Notice notice = noticeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Notice not found: " + id));
+        return toResponse(notice);
+    }
+
     @Transactional
     public void deleteNotice(Long id, String email) {
         User user = getUser(email);
-        if (user.getRole() != Role.WARDEN && user.getRole() != Role.CARETAKER) {
-            throw new UnauthorizedException("Only warden or caretaker can delete notices");
+        if (user.getRole() != Role.ADMIN &&
+            user.getRole() != Role.WARDEN &&
+            user.getRole() != Role.CARETAKER) {
+            throw new UnauthorizedException("Only admin, warden or caretaker can delete notices");
         }
         Notice notice = noticeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice not found: " + id));
@@ -73,6 +90,7 @@ public class NoticeService {
                 .id(n.getId())
                 .title(n.getTitle())
                 .content(n.getContent())
+                .imageUrl(n.getImageUrl())         // ✅ NEW
                 .postedByName(n.getPostedBy().getName())
                 .postedByRole(n.getPostedBy().getRole().name())
                 .createdAt(n.getCreatedAt())

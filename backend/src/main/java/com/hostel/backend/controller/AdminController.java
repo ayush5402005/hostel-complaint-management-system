@@ -17,13 +17,12 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
-    private final ComplaintService complaintService; // ✅ Added field
+    private final ComplaintService complaintService;
 
-    // ✅ Both services injected via constructor
     public AdminController(AdminService adminService,
                            ComplaintService complaintService) {
-        this.adminService      = adminService;
-        this.complaintService  = complaintService;
+        this.adminService     = adminService;
+        this.complaintService = complaintService;
     }
 
     @PostMapping("/create-warden")
@@ -47,8 +46,9 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
+    // ✅ Fixed — hasRole() → hasAnyRole()
     @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<List<AdminUserResponse>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
     }
@@ -87,6 +87,7 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "User activated successfully"));
     }
 
+    // ✅ Delete — ADMIN only
     @DeleteMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
@@ -100,7 +101,6 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getDashboardStats());
     }
 
-    // ✅ Worker stats — average rating + job counts
     @GetMapping("/workers/{id}/stats")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<WorkerDashboardStatsResponse> getWorkerStats(

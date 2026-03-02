@@ -8,10 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "notices")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class Notice {
 
     @Id
@@ -23,6 +20,10 @@ public class Notice {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    // ✅ NEW
+    @Column
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "posted_by", nullable = false)

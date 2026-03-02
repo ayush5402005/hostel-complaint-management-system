@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import api from '../../api/axios';
@@ -16,7 +16,6 @@ const roleColors = {
   MESS_CONVENOR: 'bg-yellow-100 text-yellow-700',
 };
 
-// ✅ Star display component
 const StarDisplay = ({ rating }) => {
   if (!rating) return <span className="text-xs text-gray-400">No ratings</span>;
   return (
@@ -33,27 +32,32 @@ const StarDisplay = ({ rating }) => {
 };
 
 const UserManagement = () => {
-  const { user }      = useAuth();
-  const { showToast } = useToast();
-  const navigate      = useNavigate();
+  const { user }        = useAuth();
+  const { showToast }   = useToast();
+  const navigate        = useNavigate();
+  const [searchParams]  = useSearchParams(); // ✅ Read ?role=WORKER from URL
 
   const [users, setUsers]                   = useState([]);
   const [loading, setLoading]               = useState(true);
-  const [roleFilter, setRoleFilter]         = useState('');
   const [search, setSearch]                 = useState('');
   const [actionLoading, setActionLoading]   = useState(null);
-
-  // ✅ Worker ratings map: { workerId: { averageRating, closed } }
   const [workerStats, setWorkerStats]       = useState({});
   const [ratingsLoading, setRatingsLoading] = useState(false);
-
-  // Edit modal state
   const [editUser, setEditUser]             = useState(null);
   const [editForm, setEditForm]             = useState({});
   const [editLoading, setEditLoading]       = useState(false);
 
+  // ✅ Default filter: URL param → CARETAKER default → empty
+  const [roleFilter, setRoleFilter] = useState(
+    searchParams.get('role') ||
+    (user.role === 'CARETAKER' ? 'WORKER' : '')
+  );
+
   const canCreate = ['ADMIN', 'WARDEN', 'CARETAKER'].includes(user.role);
   const canEdit   = ['ADMIN', 'WARDEN'].includes(user.role);
+
+  // ✅ CARETAKER can only see workers — lock their filter
+  const isFilterLocked = user.role === 'CARETAKER';
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -68,7 +72,6 @@ const UserManagement = () => {
     }
   };
 
-  // ✅ Fetch ratings for all workers in the current user list
   const fetchWorkerRatings = async (userList) => {
     const workers = userList.filter(u => u.role === 'WORKER');
     if (workers.length === 0) return;
@@ -92,7 +95,6 @@ const UserManagement = () => {
 
   useEffect(() => { fetchUsers(); }, [roleFilter]);
 
-  // ✅ When users load, fetch worker ratings
   useEffect(() => {
     if (users.length > 0) fetchWorkerRatings(users);
   }, [users]);
@@ -154,7 +156,6 @@ const UserManagement = () => {
     u.phoneNumber?.includes(search)
   );
 
-  // ✅ Show rating column only when viewing workers
   const showRatingCol = roleFilter === 'WORKER' ||
     (!roleFilter && filtered.some(u => u.role === 'WORKER'));
 
@@ -210,9 +211,12 @@ const UserManagement = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
+            {/* ✅ Title changes based on role */}
+            <h1 className="text-2xl font-bold text-gray-800">
+              {isFilterLocked ? '👷 Workers' : 'User Management'}
+            </h1>
             <p className="text-sm text-gray-500 mt-1">
-              {filtered.length} user{filtered.length !== 1 ? 's' : ''} found
+              {filtered.length} {isFilterLocked ? 'worker' : 'user'}{filtered.length !== 1 ? 's' : ''} found
             </p>
           </div>
           {canCreate && (
@@ -231,13 +235,21 @@ const UserManagement = () => {
             onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <select value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            {ROLES.map(r => (
-              <option key={r} value={r}>{r || 'All Roles'}</option>
-            ))}
-          </select>
+
+          {/* ✅ CARETAKER sees locked badge, others see dropdown */}
+          {isFilterLocked ? (
+            <div className="flex items-center gap-2 border border-green-200 bg-green-50 rounded-lg px-4 py-2">
+              <span className="text-xs font-semibold text-green-700">👷 Workers Only</span>
+            </div>
+          ) : (
+            <select value={roleFilter}
+              onChange={e => setRoleFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              {ROLES.map(r => (
+                <option key={r} value={r}>{r || 'All Roles'}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Table */}
@@ -269,7 +281,6 @@ const UserManagement = () => {
                       className={`hover:bg-gray-50 transition ${!u.active ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 text-gray-400 text-xs">{u.id}</td>
 
-                      {/* Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold text-sm flex items-center justify-center flex-shrink-0">
@@ -281,7 +292,6 @@ const UserManagement = () => {
 
                       <td className="px-4 py-3 text-gray-500">{u.email}</td>
 
-                      {/* Role */}
                       <td className="px-4 py-3">
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${roleColors[u.role] || 'bg-gray-100 text-gray-600'}`}>
                           {u.role}
@@ -290,14 +300,13 @@ const UserManagement = () => {
 
                       <td className="px-4 py-3 text-gray-500">{u.phoneNumber}</td>
 
-                      {/* Details */}
                       <td className="px-4 py-3 text-gray-400 text-xs">
                         {u.role === 'STUDENT'
                           ? `Block ${u.hostelBlock} / Room ${u.roomNumber}`
                           : u.department || '—'}
                       </td>
 
-                      {/* ✅ Rating column — only for WORKER rows */}
+                      {/* Rating column */}
                       {showRatingCol && (
                         <td className="px-4 py-3">
                           {u.role === 'WORKER' ? (
@@ -319,7 +328,6 @@ const UserManagement = () => {
                         </td>
                       )}
 
-                      {/* Status */}
                       <td className="px-4 py-3">
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full
                           ${u.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -327,7 +335,6 @@ const UserManagement = () => {
                         </span>
                       </td>
 
-                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           {canEdit && (
@@ -338,15 +345,13 @@ const UserManagement = () => {
                           )}
                           {canEdit && (
                             u.active ? (
-                              <button
-                                onClick={() => handleDeactivate(u.id)}
+                              <button onClick={() => handleDeactivate(u.id)}
                                 disabled={actionLoading === u.id}
                                 className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1 rounded-lg transition disabled:opacity-50">
                                 {actionLoading === u.id ? '...' : '🚫 Deactivate'}
                               </button>
                             ) : (
-                              <button
-                                onClick={() => handleActivate(u.id)}
+                              <button onClick={() => handleActivate(u.id)}
                                 disabled={actionLoading === u.id}
                                 className="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-3 py-1 rounded-lg transition disabled:opacity-50">
                                 {actionLoading === u.id ? '...' : '✅ Activate'}

@@ -23,6 +23,12 @@ public class NoticeController {
         return ResponseEntity.ok(noticeService.getAllNotices());
     }
 
+    // ✅ NEW — get single notice
+    @GetMapping("/{id}")
+    public ResponseEntity<NoticeResponse> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(noticeService.getNoticeById(id));
+    }
+
     @PostMapping
     public ResponseEntity<NoticeResponse> create(
             @RequestBody NoticeRequest request,

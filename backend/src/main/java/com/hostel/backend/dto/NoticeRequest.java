@@ -6,4 +6,5 @@ import lombok.Data;
 public class NoticeRequest {
     private String title;
     private String content;
+    private String imageUrl; // ✅ NEW — optional
 }
