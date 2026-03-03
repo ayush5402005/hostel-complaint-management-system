@@ -14,6 +14,14 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // ✅ NEW — Handle AppException with correct HTTP status
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiErrorResponse> handleAppException(AppException ex) {
+        return ResponseEntity
+            .status(ex.getStatus())
+            .body(new ApiErrorResponse(ex.getStatus().value(), ex.getMessage(), LocalDateTime.now()));
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -36,15 +44,17 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse(400, errors, LocalDateTime.now()));
     }
 
+    // ✅ FIXED — RuntimeException should NOT expose message to client
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiErrorResponse> handleRuntime(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiErrorResponse(400, ex.getMessage(), LocalDateTime.now()));
     }
 
+    // ✅ FIXED — Never expose internal details in production
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneral(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiErrorResponse(500, "Internal server error: " + ex.getMessage(), LocalDateTime.now()));
+                .body(new ApiErrorResponse(500, "Something went wrong. Please try again later.", LocalDateTime.now()));
     }
 }

@@ -2,8 +2,10 @@ package com.hostel.backend.service;
 
 import com.hostel.backend.entity.OtpVerification;
 import com.hostel.backend.entity.User;
+import com.hostel.backend.exception.AppException;
 import com.hostel.backend.repository.OtpVerificationRepository;
 import com.hostel.backend.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +27,8 @@ public class OtpService {
         this.emailService = emailService;
     }
 
-    // Generate and send OTP
     @Transactional
     public void generateAndSendOtp(String email) {
-        // Delete any existing OTP for this email
         otpRepository.deleteByEmail(email);
 
         String otp = String.format("%06d", new Random().nextInt(999999));
@@ -43,39 +43,34 @@ public class OtpService {
         emailService.sendOtpEmail(email, otp);
     }
 
-    // Verify OTP
     @Transactional
     public void verifyOtp(String email, String otp) {
-        OtpVerification otpVerification = otpRepository.findByEmailAndUsedFalse(email)
-                .orElseThrow(() -> new RuntimeException("OTP not found. Please request a new one."));
 
-        // Check expiry
+        OtpVerification otpVerification = otpRepository.findByEmailAndUsedFalse(email)
+                .orElseThrow(() -> new AppException("OTP not found. Please request a new one.", HttpStatus.NOT_FOUND));
+
         if (LocalDateTime.now().isAfter(otpVerification.getExpiresAt())) {
             otpRepository.delete(otpVerification);
-            throw new RuntimeException("OTP has expired. Please request a new one.");
+            throw new AppException("OTP has expired. Please request a new one.", HttpStatus.GONE);
         }
 
-        // Check max attempts
         if (otpVerification.getAttempts() >= 3) {
             otpRepository.delete(otpVerification);
-            throw new RuntimeException("Too many failed attempts. Please request a new OTP.");
+            throw new AppException("Too many failed attempts. Please request a new OTP.", HttpStatus.TOO_MANY_REQUESTS);
         }
 
-        // Check OTP value
         if (!otpVerification.getOtp().equals(otp)) {
             otpVerification.setAttempts(otpVerification.getAttempts() + 1);
             otpRepository.save(otpVerification);
             int remaining = 3 - otpVerification.getAttempts();
-            throw new RuntimeException("Invalid OTP. " + remaining + " attempt(s) remaining.");
+            throw new AppException("Invalid OTP. " + remaining + " attempt(s) remaining.", HttpStatus.BAD_REQUEST);
         }
 
-        // ✅ OTP correct — mark as used
         otpVerification.setUsed(true);
         otpRepository.save(otpVerification);
 
-        // ✅ Activate user
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found."));
+                .orElseThrow(() -> new AppException("User not found.", HttpStatus.NOT_FOUND));
         user.setActive(true);
         userRepository.save(user);
     }
