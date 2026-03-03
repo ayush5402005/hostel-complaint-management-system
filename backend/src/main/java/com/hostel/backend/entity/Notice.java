@@ -7,7 +7,13 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "notices")
+@Table(
+    name = "notices",
+    indexes = {
+        @Index(name = "idx_notice_created_at", columnList = "createdAt"),  // ✅ sort by date
+        @Index(name = "idx_notice_deleted",    columnList = "deleted")     // ✅ filter deleted
+    }
+)
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class Notice {
 
@@ -21,7 +27,6 @@ public class Notice {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    // ✅ NEW
     @Column
     private String imageUrl;
 
@@ -33,4 +38,12 @@ public class Notice {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    // ✅ NEW — soft delete flag
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    // ✅ NEW — when was it deleted
+    private LocalDateTime deletedAt;
 }

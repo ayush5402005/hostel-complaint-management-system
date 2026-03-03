@@ -5,12 +5,15 @@ import com.hostel.backend.dto.NoticeResponse;
 import com.hostel.backend.entity.Notice;
 import com.hostel.backend.entity.User;
 import com.hostel.backend.enums.Role;
+import com.hostel.backend.exception.AppException;
 import com.hostel.backend.exception.ResourceNotFoundException;
 import com.hostel.backend.exception.UnauthorizedException;
 import com.hostel.backend.repository.NoticeRepository;
 import com.hostel.backend.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,23 +33,22 @@ public class NoticeService {
     public NoticeResponse createNotice(String email, NoticeRequest request) {
         User user = getUser(email);
 
-        // ✅ Added ADMIN role
         if (user.getRole() != Role.ADMIN &&
             user.getRole() != Role.WARDEN &&
             user.getRole() != Role.CARETAKER) {
             throw new UnauthorizedException("Only admin, warden or caretaker can post notices");
         }
         if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
-            throw new RuntimeException("Title is required");
+            throw new AppException("Title is required", HttpStatus.BAD_REQUEST);
         }
         if (request.getContent() == null || request.getContent().trim().isEmpty()) {
-            throw new RuntimeException("Content is required");
+            throw new AppException("Content is required", HttpStatus.BAD_REQUEST);
         }
 
         Notice notice = Notice.builder()
                 .title(request.getTitle().trim())
                 .content(request.getContent().trim())
-                .imageUrl(request.getImageUrl())  // ✅ NEW
+                .imageUrl(request.getImageUrl())
                 .postedBy(user)
                 .build();
 
@@ -55,14 +57,15 @@ public class NoticeService {
 
     @Transactional(readOnly = true)
     public List<NoticeResponse> getAllNotices() {
-        return noticeRepository.findAllByOrderByCreatedAtDesc()
+        // ✅ Only returns non-deleted notices
+        return noticeRepository.findByDeletedFalseOrderByCreatedAtDesc()
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    // ✅ NEW — get single notice by id
     @Transactional(readOnly = true)
     public NoticeResponse getNoticeById(Long id) {
-        Notice notice = noticeRepository.findById(id)
+        // ✅ 404 if deleted or not found
+        Notice notice = noticeRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice not found: " + id));
         return toResponse(notice);
     }
@@ -75,9 +78,14 @@ public class NoticeService {
             user.getRole() != Role.CARETAKER) {
             throw new UnauthorizedException("Only admin, warden or caretaker can delete notices");
         }
-        Notice notice = noticeRepository.findById(id)
+
+        Notice notice = noticeRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice not found: " + id));
-        noticeRepository.delete(notice);
+
+        // ✅ Soft delete — mark as deleted, never remove from DB
+        notice.setDeleted(true);
+        notice.setDeletedAt(LocalDateTime.now());
+        noticeRepository.save(notice);
     }
 
     private User getUser(String email) {
@@ -90,7 +98,7 @@ public class NoticeService {
                 .id(n.getId())
                 .title(n.getTitle())
                 .content(n.getContent())
-                .imageUrl(n.getImageUrl())         // ✅ NEW
+                .imageUrl(n.getImageUrl())
                 .postedByName(n.getPostedBy().getName())
                 .postedByRole(n.getPostedBy().getRole().name())
                 .createdAt(n.getCreatedAt())
