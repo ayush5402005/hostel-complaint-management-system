@@ -6,6 +6,7 @@ import api from '../api/axios';
 const CATEGORIES = ['ELECTRICITY', 'PLUMBING', 'CLEANING', 'FURNITURE', 'WIFI',
   'MESS', 'WATER_SUPPLY', 'GEYSER', 'ROOM_REPAIR', 'OTHER'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']; // ✅ added pdf
 
 const ComplaintForm = () => {
   const navigate = useNavigate();
@@ -21,12 +22,22 @@ const ComplaintForm = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be less than 5MB');
+
+    // ✅ Type check
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError('Only JPG, PNG, WEBP and PDF files are allowed');
       return;
     }
+
+    // ✅ Size check
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File must be less than 5MB');
+      return;
+    }
+
     setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    // ✅ PDF has no preview — show icon instead
+    setImagePreview(file.type === 'application/pdf' ? 'pdf' : URL.createObjectURL(file));
     setError('');
   };
 
@@ -43,7 +54,6 @@ const ComplaintForm = () => {
     try {
       let imageUrl = null;
 
-      // Upload image first if selected
       if (imageFile) {
         setUploadingImage(true);
         const formData = new FormData();
@@ -133,26 +143,37 @@ const ComplaintForm = () => {
               </p>
             </div>
 
-            {/* Image Upload */}
+            {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Photo <span className="text-gray-400 font-normal">(optional, max 5MB)</span>
+                Attachment <span className="text-gray-400 font-normal">(optional, max 5MB)</span>
               </label>
 
               {!imagePreview ? (
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
                   <div className="text-center">
-                    <p className="text-3xl mb-1">📷</p>
-                    <p className="text-sm text-gray-500">Click to upload image</p>
-                    <p className="text-xs text-gray-400">PNG, JPG, JPEG up to 5MB</p>
+                    <p className="text-3xl mb-1">📎</p>
+                    <p className="text-sm text-gray-500">Click to upload file</p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WEBP, PDF up to 5MB</p>
                   </div>
-                  <input type="file" accept="image/*" className="hidden"
+                  <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" className="hidden"
                     onChange={handleImageChange} />
                 </label>
               ) : (
                 <div className="relative">
-                  <img src={imagePreview} alt="Preview"
-                    className="w-full h-48 object-cover rounded-xl border border-gray-200" />
+                  {/* ✅ PDF preview vs image preview */}
+                  {imagePreview === 'pdf' ? (
+                    <div className="w-full h-24 flex items-center justify-center bg-red-50 border border-red-200 rounded-xl gap-3">
+                      <span className="text-4xl">📄</span>
+                      <div>
+                        <p className="text-sm font-semibold text-red-700">PDF attached</p>
+                        <p className="text-xs text-red-400">{imageFile?.name}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <img src={imagePreview} alt="Preview"
+                      className="w-full h-48 object-cover rounded-xl border border-gray-200" />
+                  )}
                   <button type="button" onClick={handleRemoveImage}
                     className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold">
                     ✕
@@ -166,7 +187,7 @@ const ComplaintForm = () => {
               <button type="submit" disabled={loading}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-50"
               >
-                {uploadingImage ? '📤 Uploading image...' : loading ? 'Submitting...' : 'Submit Complaint'}
+                {uploadingImage ? '📤 Uploading...' : loading ? 'Submitting...' : 'Submit Complaint'}
               </button>
               <button type="button" onClick={() => navigate('/complaints')}
                 className="px-5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition"

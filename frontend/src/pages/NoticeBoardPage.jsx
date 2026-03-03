@@ -1,21 +1,25 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']; // ✅ added pdf
+
 const NoticeBoardPage = () => {
   const { user }      = useAuth();
   const { showToast } = useToast();
   const navigate      = useNavigate();
 
-  const [notices, setNotices]           = useState([]);
-  const [title, setTitle]               = useState('');
-  const [content, setContent]           = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [imageUrl, setImageUrl]         = useState('');
+  const [notices, setNotices]               = useState([]);
+  const [title, setTitle]                   = useState('');
+  const [content, setContent]               = useState('');
+  const [loading, setLoading]               = useState(false);
+  const [imageUrl, setImageUrl]             = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState(''); // ✅ track pdf name
+  const [uploadedFileType, setUploadedFileType] = useState(''); // ✅ track file type
 
   const canPost = ['ADMIN', 'WARDEN', 'CARETAKER'].includes(user?.role);
 
@@ -30,23 +34,41 @@ const NoticeBoardPage = () => {
 
   useEffect(() => { fetchNotices(); }, []);
 
-  // ✅ Image upload to Cloudinary (same as complaint photo)
   const handleImageUpload = async (file) => {
     if (!file) return;
+
+    // ✅ Type check
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast('Only JPG, PNG, WEBP and PDF files are allowed', 'error');
+      return;
+    }
+
+    // ✅ Size check
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('File must be less than 5MB', 'error');
+      return;
+    }
+
     setUploadingImage(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+
+      // ✅ PDFs need resource_type=raw on Cloudinary
+      const resourceType = file.type === 'application/pdf' ? 'raw' : 'image';
+
       const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
         { method: 'POST', body: formData }
       );
       const data = await res.json();
       setImageUrl(data.secure_url);
-      showToast('Image uploaded!', 'success');
+      setUploadedFileName(file.name);
+      setUploadedFileType(file.type);
+      showToast('File uploaded!', 'success');
     } catch {
-      showToast('Image upload failed', 'error');
+      showToast('File upload failed', 'error');
     } finally {
       setUploadingImage(false);
     }
@@ -67,6 +89,8 @@ const NoticeBoardPage = () => {
       setTitle('');
       setContent('');
       setImageUrl('');
+      setUploadedFileName('');
+      setUploadedFileType('');
       showToast('Notice posted successfully!', 'success');
       fetchNotices();
     } catch {
@@ -77,7 +101,7 @@ const NoticeBoardPage = () => {
   };
 
   const handleDelete = async (e, id) => {
-    e.stopPropagation(); // ✅ prevent navigating to detail on delete click
+    e.stopPropagation();
     if (!window.confirm('Delete this notice?')) return;
     try {
       await api.delete(`/notices/${id}`);
@@ -113,26 +137,35 @@ const NoticeBoardPage = () => {
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
 
-            {/* ✅ Image upload */}
+            {/* File upload */}
             <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
               ${imageUrl
                 ? 'border-indigo-400 bg-indigo-50'
                 : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}>
               <span className="text-2xl">
-                {imageUrl ? '🖼️' : uploadingImage ? '⏳' : '📷'}
+                {uploadedFileType === 'application/pdf' ? '📄'
+                  : imageUrl ? '🖼️'
+                  : uploadingImage ? '⏳' : '📎'}
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-700">
-                  {imageUrl ? 'Image attached!' : uploadingImage ? 'Uploading...' : 'Attach image (optional)'}
+                  {imageUrl
+                    ? uploadedFileType === 'application/pdf' ? 'PDF attached!' : 'Image attached!'
+                    : uploadingImage ? 'Uploading...' : 'Attach file (optional)'}
                 </p>
                 <p className="text-xs text-gray-400 truncate">
-                  {imageUrl ? imageUrl.split('/').pop() : 'JPG, PNG up to 10MB'}
+                  {imageUrl ? uploadedFileName : 'JPG, PNG, WEBP, PDF up to 5MB'}
                 </p>
               </div>
               {imageUrl && (
                 <button
                   type="button"
-                  onClick={e => { e.preventDefault(); setImageUrl(''); }}
+                  onClick={e => {
+                    e.preventDefault();
+                    setImageUrl('');
+                    setUploadedFileName('');
+                    setUploadedFileType('');
+                  }}
                   className="text-xs text-red-400 hover:text-red-600 font-medium"
                 >
                   Remove
@@ -140,19 +173,31 @@ const NoticeBoardPage = () => {
               )}
               <input
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.webp,.pdf"
                 className="hidden"
                 onChange={e => handleImageUpload(e.target.files[0])}
               />
             </label>
 
-            {/* Image preview */}
-            {imageUrl && (
+            {/* Preview — image only, PDF shows icon */}
+            {imageUrl && uploadedFileType !== 'application/pdf' && (
               <img
                 src={imageUrl}
                 alt="preview"
                 className="w-full max-h-48 object-cover rounded-xl border border-gray-200"
               />
+            )}
+            {imageUrl && uploadedFileType === 'application/pdf' && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <span className="text-3xl">📄</span>
+                <div>
+                  <p className="text-sm font-semibold text-red-700">{uploadedFileName}</p>
+                  <a href={imageUrl} target="_blank" rel="noreferrer"
+                    className="text-xs text-indigo-500 hover:underline">
+                    Preview PDF ↗
+                  </a>
+                </div>
+              </div>
             )}
 
             <button
@@ -183,10 +228,9 @@ const NoticeBoardPage = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-gray-800 text-base">📌 {n.title}</h3>
-                      {/* ✅ Image badge */}
                       {n.imageUrl && (
                         <span className="text-xs bg-indigo-100 text-indigo-600 font-semibold px-2 py-0.5 rounded-full">
-                          🖼️ Image
+                          {n.imageUrl.endsWith('.pdf') ? '📄 PDF' : '🖼️ Image'}
                         </span>
                       )}
                     </div>
@@ -202,14 +246,20 @@ const NoticeBoardPage = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* ✅ Thumbnail */}
+                    {/* ✅ Image thumbnail or PDF icon */}
                     {n.imageUrl && (
-                      <img
-                        src={n.imageUrl}
-                        alt="notice"
-                        className="w-14 h-14 rounded-lg object-cover border border-gray-200"
-                        onClick={e => e.stopPropagation()}
-                      />
+                      n.imageUrl.endsWith('.pdf') ? (
+                        <div className="w-14 h-14 rounded-lg border border-red-200 bg-red-50 flex items-center justify-center">
+                          <span className="text-2xl">📄</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={n.imageUrl}
+                          alt="notice"
+                          className="w-14 h-14 rounded-lg object-cover border border-gray-200"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      )
                     )}
                     {canPost && (
                       <button
