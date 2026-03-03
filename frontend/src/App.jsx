@@ -11,19 +11,23 @@ import ComplaintDetail from './pages/ComplaintDetail';
 import { ToastProvider } from './context/ToastContext';
 import NoticeBoardPage from './pages/NoticeBoardPage';
 import ProfilePage from './pages/ProfilePage';
-// ✅ NEW — Admin pages
 import UserManagement from './pages/admin/UserManagement';
 import CreateUser from './pages/admin/CreateUser';
 import NoticeDetailPage from './pages/NoticeDetailPage';
+import OtpVerificationPage from './pages/OtpVerificationPage'; // ✅ NEW
+
 function App() {
   return (
     <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/login"    element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            {/* ✅ Public routes */}
+            <Route path="/login"      element={<Login />} />
+            <Route path="/register"   element={<Register />} />
+            <Route path="/verify-otp" element={<OtpVerificationPage />} /> {/* ✅ NEW */}
 
+            {/* ✅ Protected routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute><Dashboard /></ProtectedRoute>
             } />
@@ -44,11 +48,14 @@ function App() {
             <Route path="/notices" element={
               <ProtectedRoute><NoticeBoardPage /></ProtectedRoute>
             } />
+            <Route path="/notices/:id" element={
+              <ProtectedRoute><NoticeDetailPage /></ProtectedRoute>
+            } />
             <Route path="/profile" element={
               <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
 
-            {/* ✅ NEW — Admin routes, only ADMIN/WARDEN/CARETAKER */}
+            {/* ✅ Admin routes */}
             <Route path="/admin/users" element={
               <ProtectedRoute allowedRoles={['ADMIN', 'WARDEN', 'CARETAKER']}>
                 <UserManagement />
@@ -60,11 +67,9 @@ function App() {
               </ProtectedRoute>
             } />
 
+            {/* ✅ Fallback */}
             <Route path="/"  element={<Navigate to="/dashboard" replace />} />
             <Route path="*"  element={<Navigate to="/dashboard" replace />} />
-          <Route path="/notices/:id" element={
-  <ProtectedRoute><NoticeDetailPage /></ProtectedRoute>
-} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

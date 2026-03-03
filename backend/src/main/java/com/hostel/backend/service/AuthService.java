@@ -15,40 +15,37 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final OtpService otpService; // ✅ NEW
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil) {
+                       JwtUtil jwtUtil,
+                       OtpService otpService) { // ✅ NEW
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.otpService = otpService; // ✅ NEW
     }
 
-    // REGISTER — Only STUDENT can self-register
     public User register(RegisterRequest request) {
 
-        // 1. Block non-student self-registration
         if (request.getRole() != null && request.getRole() != Role.STUDENT) {
             throw new RuntimeException("Self-registration is only allowed for STUDENT role");
         }
 
-        // 2. Basic mandatory validation
         if (request.getName() == null || request.getEmail() == null ||
             request.getPassword() == null || request.getPhoneNumber() == null) {
             throw new RuntimeException("Required fields are missing");
         }
 
-        // 3. ✅ College email validation
         if (!request.getEmail().endsWith("@stu.manit.ac.in")) {
             throw new RuntimeException("Students must register with college email (@stu.manit.ac.in)");
         }
 
-        // 4. Check duplicate email
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already registered");
         }
 
-        // 5. Student-specific field validation
         if (request.getScholarNumber() == null ||
             request.getHostelBlock() == null ||
             request.getRoomNumber() == null) {
@@ -59,26 +56,29 @@ public class AuthService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.STUDENT) // ✅ Always hardcoded
+                .role(Role.STUDENT)
                 .phoneNumber(request.getPhoneNumber())
                 .scholarNumber(request.getScholarNumber())
                 .hostelBlock(request.getHostelBlock())
                 .roomNumber(request.getRoomNumber())
                 .department(null)
-                .active(true)
+                .active(false) // ✅ CHANGED — inactive until OTP verified
                 .build();
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // ✅ NEW — Generate and send OTP
+        otpService.generateAndSendOtp(request.getEmail());
+
+        return savedUser;
     }
 
-    // LOGIN → RETURN TOKEN + ROLE + NAME
     public Map<String, String> login(String email, String password) {
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!user.isActive()) {
-            throw new RuntimeException("Your account has been deactivated. Contact admin.");
+            throw new RuntimeException("Account not verified. Please verify your email first.");
         }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
