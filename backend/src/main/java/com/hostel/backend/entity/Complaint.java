@@ -13,7 +13,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "complaints")
+@Table(
+    name = "complaints",
+    indexes = {
+        @Index(name = "idx_complaint_student_id", columnList = "student_id"),          // ✅ fetch by student
+        @Index(name = "idx_complaint_worker_id",  columnList = "worker_id"),           // ✅ fetch by worker
+        @Index(name = "idx_complaint_status",     columnList = "status"),              // ✅ filter by status
+        @Index(name = "idx_complaint_priority",   columnList = "priority"),            // ✅ filter by priority
+        @Index(name = "idx_complaint_created_at", columnList = "createdAt"),           // ✅ sort by date
+        @Index(name = "idx_complaint_student_status", columnList = "student_id,status") // ✅ student + status combined
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -53,7 +63,6 @@ public class Complaint {
     @Column(length = 500)
     private String rejectionReason;
 
-    // ✅ NEW — student rating (1–5) given when closing complaint
     @Column
     private Integer rating;
 

@@ -5,7 +5,13 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "otp_verifications")
+@Table(
+    name = "otp_verifications",
+    indexes = {
+        @Index(name = "idx_otp_email", columnList = "email") // ✅ OTP lookup by email
+    }
+)
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

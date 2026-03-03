@@ -6,11 +6,19 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "users")
+@Table(
+    name = "users",
+    indexes = {
+        @Index(name = "idx_user_email",         columnList = "email"),        // ✅ login lookup
+        @Index(name = "idx_user_role",           columnList = "role"),         // ✅ filter by role
+        @Index(name = "idx_user_active",         columnList = "active"),       // ✅ active users filter
+        @Index(name = "idx_user_scholar_number", columnList = "scholarNumber") // ✅ student lookup
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder                      // ✅ NEW
+@Builder
 public class User {
 
     @Id
@@ -41,9 +49,7 @@ public class User {
     private String roomNumber;
     private String department;
 
-    // ✅ NEW — soft delete / deactivate
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
-    
 }
