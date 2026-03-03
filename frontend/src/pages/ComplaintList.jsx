@@ -39,7 +39,6 @@ const smartSort = (list) => [...list].sort((a, b) => {
   return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
 });
 
-// ✅ Star Picker for rating
 const StarPicker = ({ value, onChange }) => (
   <div className="flex gap-1">
     {[1, 2, 3, 4, 5].map(star => (
@@ -68,13 +67,11 @@ const ComplaintList = () => {
   const [showRejectBox, setShowRejectBox]     = useState({});
   const [showReassignBox, setShowReassignBox] = useState({});
 
-  // ✅ Worker — resolve with photo
   const [showResolveBox, setShowResolveBox]   = useState({});
   const [resolvePhoto, setResolvePhoto]       = useState({});
   const [uploadingPhoto, setUploadingPhoto]   = useState(null);
 
-  // ✅ Student — close with rating modal
-  const [closeModal, setCloseModal]           = useState(null); // holds complaint object
+  const [closeModal, setCloseModal]           = useState(null);
   const [rating, setRating]                   = useState(0);
 
   const navigate  = useNavigate();
@@ -166,7 +163,6 @@ const ComplaintList = () => {
     }
   };
 
-  // ✅ Upload proof photo then mark resolved
   const handlePhotoUpload = async (complaintId, file) => {
     if (!file) return;
     setUploadingPhoto(complaintId);
@@ -203,7 +199,6 @@ const ComplaintList = () => {
     }
   };
 
-  // ✅ Student close with rating
   const handleCloseWithRating = async () => {
     if (!closeModal) return;
     setActionLoading(closeModal.id);
@@ -235,7 +230,7 @@ const ComplaintList = () => {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* ✅ Close + Rate Modal */}
+      {/* Close + Rate Modal */}
       {closeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -243,7 +238,6 @@ const ComplaintList = () => {
             <p className="text-sm text-gray-500 mb-4">
               #{closeModal.id} — {closeModal.title}
             </p>
-
             <p className="text-sm font-semibold text-gray-700 mb-2">
               Rate the work done: <span className="text-gray-400">(optional)</span>
             </p>
@@ -253,7 +247,6 @@ const ComplaintList = () => {
                 You selected {rating} star{rating !== 1 ? 's' : ''}
               </p>
             )}
-
             <div className="flex gap-2 mt-5">
               <button onClick={() => { setCloseModal(null); setRating(0); }}
                 className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition">
@@ -357,7 +350,6 @@ const ComplaintList = () => {
                           🚨 ESCALATED
                         </span>
                       )}
-                      {/* ✅ Show rating if closed */}
                       {c.status === 'CLOSED' && c.rating && (
                         <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
                           ⭐ {c.rating}/5
@@ -406,7 +398,6 @@ const ComplaintList = () => {
                         onClick={e => { e.stopPropagation(); window.open(`http://localhost:8080${c.issuePhotoUrl}`, '_blank'); }}
                       />
                     )}
-                    {/* ✅ Show resolved photo if present */}
                     {c.resolvedPhotoUrl && (
                       <div className="mt-2 flex items-center gap-2">
                         <img
@@ -508,7 +499,7 @@ const ComplaintList = () => {
                       </div>
                     )}
 
-                    {/* ✅ WORKER — Start Work */}
+                    {/* WORKER — Start Work */}
                     {user.role === 'WORKER' && c.status === 'ASSIGNED' && (
                       <button onClick={() => handleStartWork(c.id)}
                         disabled={actionLoading === c.id}
@@ -517,7 +508,7 @@ const ComplaintList = () => {
                       </button>
                     )}
 
-                    {/* ✅ WORKER — Mark Resolved + Upload Photo */}
+                    {/* WORKER — Mark Resolved + Upload Photo */}
                     {user.role === 'WORKER' && c.status === 'IN_PROGRESS' && (
                       <div className="flex flex-col gap-1">
                         <button
@@ -525,52 +516,42 @@ const ComplaintList = () => {
                           className="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg transition">
                           ✓ Mark Resolved
                         </button>
-                       {showResolveBox[c.id] && (
-  <div className="flex flex-col gap-2 mt-1 p-3 bg-green-50 border border-green-200 rounded-xl w-56">
-    <p className="text-xs font-semibold text-green-700">Upload proof photo (optional)</p>
-
-    {/* ✅ Styled file upload button */}
-    <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition
-      ${resolvePhoto[c.id]
-        ? 'border-green-400 bg-green-100'
-        : 'border-green-300 bg-white hover:bg-green-50'}`}>
-      <span className="text-xl">
-        {resolvePhoto[c.id] ? '✅' : uploadingPhoto === c.id ? '⏳' : '📷'}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-green-700">
-          {resolvePhoto[c.id]
-            ? 'Photo uploaded!'
-            : uploadingPhoto === c.id
-            ? 'Uploading...'
-            : 'Choose photo'}
-        </p>
-        <p className="text-xs text-gray-400">
-          {resolvePhoto[c.id]
-            ? resolvePhoto[c.id].split('/').pop()
-            : 'JPG, PNG'}
-        </p>
-      </div>
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => handlePhotoUpload(c.id, e.target.files[0])}
-      />
-    </label>
-
-    <button onClick={() => handleMarkResolved(c.id)}
-      disabled={actionLoading === c.id || uploadingPhoto === c.id}
-      className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg disabled:opacity-50 font-medium transition">
-      {actionLoading === c.id ? 'Saving...' : 'Confirm Resolved'}
-    </button>
-  </div>
-)}
-
+                        {showResolveBox[c.id] && (
+                          <div className="flex flex-col gap-2 mt-1 p-3 bg-green-50 border border-green-200 rounded-xl w-56">
+                            <p className="text-xs font-semibold text-green-700">Upload proof photo (optional)</p>
+                            <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition
+                              ${resolvePhoto[c.id]
+                                ? 'border-green-400 bg-green-100'
+                                : 'border-green-300 bg-white hover:bg-green-50'}`}>
+                              <span className="text-xl">
+                                {resolvePhoto[c.id] ? '✅' : uploadingPhoto === c.id ? '⏳' : '📷'}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-green-700">
+                                  {resolvePhoto[c.id] ? 'Photo uploaded!'
+                                    : uploadingPhoto === c.id ? 'Uploading...'
+                                    : 'Choose photo'}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {resolvePhoto[c.id]
+                                    ? resolvePhoto[c.id].split('/').pop()
+                                    : 'JPG, PNG'}
+                                </p>
+                              </div>
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={e => handlePhotoUpload(c.id, e.target.files[0])} />
+                            </label>
+                            <button onClick={() => handleMarkResolved(c.id)}
+                              disabled={actionLoading === c.id || uploadingPhoto === c.id}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg disabled:opacity-50 font-medium transition">
+                              {actionLoading === c.id ? 'Saving...' : 'Confirm Resolved'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* ✅ STUDENT — Close + Rate */}
+                    {/* STUDENT — Close + Rate */}
                     {user.role === 'STUDENT' && c.status === 'RESOLVED' && (
                       <button
                         onClick={() => { setCloseModal(c); setRating(0); }}
@@ -586,18 +567,39 @@ const ComplaintList = () => {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* ✅ Improved Pagination */}
         {totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-6">
+          <div className="flex justify-center items-center gap-2 mt-6 flex-wrap">
             <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100">
-              ← Previous
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition">
+              ← Prev
             </button>
-            <span className="px-4 py-2 text-sm text-gray-600">
-              Page {page + 1} of {totalPages}
-            </span>
+
+            {Array.from({ length: totalPages }, (_, i) => i)
+              .filter(i => i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1)
+              .reduce((acc, i, idx, arr) => {
+                if (idx > 0 && i - arr[idx - 1] > 1) acc.push('...');
+                acc.push(i);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === '...' ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">...</span>
+                ) : (
+                  <button key={item} onClick={() => setPage(item)}
+                    className={`w-9 h-9 text-sm rounded-lg border transition font-medium
+                      ${page === item
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}>
+                    {item + 1}
+                  </button>
+                )
+              )
+            }
+
             <button disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100">
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition">
               Next →
             </button>
           </div>
