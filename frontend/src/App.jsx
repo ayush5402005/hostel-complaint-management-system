@@ -14,7 +14,9 @@ import ProfilePage from './pages/ProfilePage';
 import UserManagement from './pages/admin/UserManagement';
 import CreateUser from './pages/admin/CreateUser';
 import NoticeDetailPage from './pages/NoticeDetailPage';
-import OtpVerificationPage from './pages/OtpVerificationPage'; // ✅ NEW
+import OtpVerificationPage from './pages/OtpVerificationPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage'; // ✅ NEW
+import ResetPasswordPage from './pages/ResetPasswordPage';   // ✅ NEW
 
 function App() {
   return (
@@ -22,12 +24,14 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* ✅ Public routes */}
-            <Route path="/login"      element={<Login />} />
-            <Route path="/register"   element={<Register />} />
-            <Route path="/verify-otp" element={<OtpVerificationPage />} /> {/* ✅ NEW */}
+            {/* Public routes */}
+            <Route path="/login"            element={<Login />} />
+            <Route path="/register"         element={<Register />} />
+            <Route path="/verify-otp"       element={<OtpVerificationPage />} />
+            <Route path="/forgot-password"  element={<ForgotPasswordPage />} /> {/* ✅ NEW */}
+            <Route path="/reset-password"   element={<ResetPasswordPage />} />  {/* ✅ NEW */}
 
-            {/* ✅ Protected routes */}
+            {/* Protected routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute><Dashboard /></ProtectedRoute>
             } />
@@ -55,7 +59,7 @@ function App() {
               <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
 
-            {/* ✅ Admin routes */}
+            {/* Admin routes */}
             <Route path="/admin/users" element={
               <ProtectedRoute allowedRoles={['ADMIN', 'WARDEN', 'CARETAKER']}>
                 <UserManagement />
@@ -67,7 +71,7 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ✅ Fallback */}
+            {/* Fallback */}
             <Route path="/"  element={<Navigate to="/dashboard" replace />} />
             <Route path="*"  element={<Navigate to="/dashboard" replace />} />
           </Routes>
