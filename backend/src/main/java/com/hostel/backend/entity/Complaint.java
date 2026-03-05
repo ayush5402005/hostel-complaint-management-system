@@ -1,9 +1,7 @@
 package com.hostel.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.hostel.backend.enums.ComplaintStatus;
-import com.hostel.backend.enums.ComplaintPriority;
-import com.hostel.backend.enums.ComplaintCategory;
+import com.hostel.backend.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -16,12 +14,15 @@ import java.util.List;
 @Table(
     name = "complaints",
     indexes = {
-        @Index(name = "idx_complaint_student_id", columnList = "student_id"),          // ✅ fetch by student
-        @Index(name = "idx_complaint_worker_id",  columnList = "worker_id"),           // ✅ fetch by worker
-        @Index(name = "idx_complaint_status",     columnList = "status"),              // ✅ filter by status
-        @Index(name = "idx_complaint_priority",   columnList = "priority"),            // ✅ filter by priority
-        @Index(name = "idx_complaint_created_at", columnList = "createdAt"),           // ✅ sort by date
-        @Index(name = "idx_complaint_student_status", columnList = "student_id,status") // ✅ student + status combined
+        @Index(name = "idx_complaint_student_id",     columnList = "student_id"),
+        @Index(name = "idx_complaint_worker_id",      columnList = "worker_id"),
+        @Index(name = "idx_complaint_status",         columnList = "status"),
+        @Index(name = "idx_complaint_priority",       columnList = "priority"),
+        @Index(name = "idx_complaint_created_at",     columnList = "createdAt"),
+        @Index(name = "idx_complaint_student_status", columnList = "student_id,status"),
+        @Index(name = "idx_complaint_hostel_id",      columnList = "hostel_id"),   // ✅ NEW
+        @Index(name = "idx_complaint_block_id",       columnList = "block_id"),    // ✅ NEW
+        @Index(name = "idx_complaint_pipeline",       columnList = "pipeline")     // ✅ NEW
     }
 )
 @Data
@@ -43,6 +44,14 @@ public class Complaint {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ComplaintCategory category;
+
+    @Column(length = 200)
+    private String subCategory;                    // ✅ NEW — e.g. "Tubelight not working"
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private ComplaintPipeline pipeline = ComplaintPipeline.HOSTEL; // ✅ NEW — set by caretaker
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -66,6 +75,9 @@ public class Complaint {
     @Column
     private Integer rating;
 
+    @Column(length = 1000)
+    private String reviewText;                     // ✅ NEW — optional text review by student
+
     @Column(nullable = false)
     @Builder.Default
     private boolean isOverdue = false;
@@ -76,6 +88,27 @@ public class Complaint {
 
     private LocalDateTime lastSlaNotifiedAt;
 
+    // ── Availability slots (optional, for room visits) ─────────────────────
+    @Column(length = 20)
+    private String slot1Day;                       // ✅ NEW — Today / Tomorrow / Day after
+
+    @Column(length = 100)
+    private String slot1Time;                      // ✅ NEW — e.g. "2:00 PM - 4:00 PM"
+
+    @Column(length = 20)
+    private String slot2Day;
+
+    @Column(length = 100)
+    private String slot2Time;
+
+    @Column(length = 20)
+    private String slot3Day;
+
+    @Column(length = 100)
+    private String slot3Time;
+
+    // ── Relationships ───────────────────────────────────────────────────────
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
@@ -85,6 +118,29 @@ public class Complaint {
     @JoinColumn(name = "worker_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User assignedWorker;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hostel_id")                // ✅ NEW — copied from student at creation
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Hostel hostel;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "block_id")                 // ✅ NEW — copied from student at creation
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Block block;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")            // ✅ NEW — set when caretaker forwards to dept
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Department department;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "forwarded_by_id")          // ✅ NEW — caretaker who forwarded
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private User forwardedBy;
+
+    @Column
+    private LocalDateTime forwardedAt;             // ✅ NEW — when it was forwarded
 
     @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
