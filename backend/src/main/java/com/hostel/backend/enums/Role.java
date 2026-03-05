@@ -1,11 +1,10 @@
 package com.hostel.backend.enums;
 
 public enum Role {
-
-    STUDENT,          // Raises complaints
-    WORKER,           // Resolves assigned complaints
-    CARETAKER,        // Manages assignments
-    WARDEN,           // Super admin of hostel
-    MESS_CONVENOR,     // Handles mess-related issues
-    ADMIN
+    STUDENT,      // Raises complaints
+    WORKER,       // Resolves assigned complaints
+    CARETAKER,    // Manages hostel complaints + forwards institute ones
+    WARDEN,       // Monitors complaints in their hostel/block
+    DEPT_HEAD,    // Receives institute complaints, assigns institute workers
+    ADMIN         // Full access
 }
