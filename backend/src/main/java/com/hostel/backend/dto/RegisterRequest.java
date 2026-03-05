@@ -11,7 +11,7 @@ public class RegisterRequest {
     private String password;
     private Role role;
 
-    private String phoneNumber;   // ✅ new
+    private String phoneNumber;
 
     // 👇 Student fields
     private String scholarNumber;
@@ -19,5 +19,6 @@ public class RegisterRequest {
     private String roomNumber;
 
     // 👇 Staff fields
-    private String department;    // ✅ new
+    private String department;      // name (existing)
+    private Long departmentId;      // ✅ NEW — used when creating DEPT_HEAD
 }

@@ -1,10 +1,12 @@
 package com.hostel.backend.service;
 
 import com.hostel.backend.dto.*;
+import com.hostel.backend.entity.Department;
 import com.hostel.backend.entity.User;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.enums.Role;
 import com.hostel.backend.repository.ComplaintRepository;
+import com.hostel.backend.repository.DepartmentRepository;
 import com.hostel.backend.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,14 +20,19 @@ public class AdminService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ComplaintRepository complaintRepository;
+    private final DepartmentRepository departmentRepository; // ✅ NEW
 
     public AdminService(UserRepository userRepository,
                         PasswordEncoder passwordEncoder,
-                        ComplaintRepository complaintRepository) {
-        this.userRepository      = userRepository;
-        this.passwordEncoder     = passwordEncoder;
-        this.complaintRepository = complaintRepository;
+                        ComplaintRepository complaintRepository,
+                        DepartmentRepository departmentRepository) { // ✅ NEW
+        this.userRepository       = userRepository;
+        this.passwordEncoder      = passwordEncoder;
+        this.complaintRepository  = complaintRepository;
+        this.departmentRepository = departmentRepository; // ✅ NEW
     }
+
+    // ── User Creation ─────────────────────────────────────────────
 
     public User createUserWithRole(RegisterRequest request, Role role) {
         if (request.getName() == null || request.getEmail() == null ||
@@ -35,16 +42,26 @@ public class AdminService {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("User with this email already exists");
         }
-        User user = User.builder()
+
+        User.UserBuilder builder = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .phoneNumber(request.getPhoneNumber())
-                .active(true)
-                .build();
-        return userRepository.save(user);
+                .active(true);
+
+        // ✅ NEW — assign department if provided (for DEPT_HEAD)
+        if (request.getDepartmentId() != null) {
+            Department dept = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new RuntimeException("Department not found"));
+            builder.department(dept);
+        }
+
+        return userRepository.save(builder.build());
     }
+
+    // ── User Queries ──────────────────────────────────────────────
 
     public List<AdminUserResponse> getAllUsers() {
         return userRepository.findAll()
@@ -60,6 +77,8 @@ public class AdminService {
                 .map(this::mapToAdminUserResponse)
                 .collect(Collectors.toList());
     }
+
+    // ── User Updates ──────────────────────────────────────────────
 
     public User updateUser(Long id, UpdateUserRequest request) {
         User user = userRepository.findById(id)
@@ -89,6 +108,15 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         userRepository.delete(user);
     }
+
+    // ── Departments ───────────────────────────────────────────────
+
+    // ✅ NEW
+    public List<Department> getAllDepartments() {
+        return departmentRepository.findAll();
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────
 
     public DashboardStatsResponse getDashboardStats() {
         long total      = complaintRepository.count();

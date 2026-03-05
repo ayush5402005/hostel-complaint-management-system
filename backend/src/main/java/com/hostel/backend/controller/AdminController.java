@@ -1,6 +1,7 @@
 package com.hostel.backend.controller;
 
 import com.hostel.backend.dto.*;
+import com.hostel.backend.entity.Department;
 import com.hostel.backend.entity.User;
 import com.hostel.backend.enums.Role;
 import com.hostel.backend.service.AdminService;
@@ -25,6 +26,8 @@ public class AdminController {
         this.complaintService = complaintService;
     }
 
+    // ── User Creation ─────────────────────────────────────────────
+
     @PostMapping("/create-warden")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<?> createWarden(@RequestBody RegisterRequest request) {
@@ -46,7 +49,16 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ Fixed — hasRole() → hasAnyRole()
+    // ✅ NEW — Create Dept Head
+    @PostMapping("/create-dept-head")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> createDeptHead(@RequestBody RegisterRequest request) {
+        User user = adminService.createUserWithRole(request, Role.DEPT_HEAD);
+        return ResponseEntity.ok(user);
+    }
+
+    // ── User Management ───────────────────────────────────────────
+
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN')")
     public ResponseEntity<List<AdminUserResponse>> getAllUsers() {
@@ -63,6 +75,13 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<List<AdminUserResponse>> getWorkers() {
         return ResponseEntity.ok(adminService.getUsersByRole(Role.WORKER));
+    }
+
+    // ✅ NEW — List all dept heads
+    @GetMapping("/dept-heads")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AdminUserResponse>> getDeptHeads() {
+        return ResponseEntity.ok(adminService.getUsersByRole(Role.DEPT_HEAD));
     }
 
     @PutMapping("/users/{id}")
@@ -87,13 +106,23 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "User activated successfully"));
     }
 
-    // ✅ Delete — ADMIN only
     @DeleteMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         adminService.deleteUser(id);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
+
+    // ── Departments ───────────────────────────────────────────────
+
+    // ✅ NEW — List all departments
+    @GetMapping("/departments")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Department>> getAllDepartments() {
+        return ResponseEntity.ok(adminService.getAllDepartments());
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────
 
     @GetMapping("/dashboard-stats")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
