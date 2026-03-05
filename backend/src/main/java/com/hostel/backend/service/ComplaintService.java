@@ -59,9 +59,11 @@ public class ComplaintService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .phoneNumber(user.getPhoneNumber())
-                .hostelBlock(user.getHostelBlock())
+                .hostelBlock(user.getBlock() != null
+                        ? user.getBlock().getName() : null)           // ✅ fixed
                 .roomNumber(user.getRoomNumber())
-                .department(user.getDepartment())
+                .department(user.getDepartment() != null
+                        ? user.getDepartment().getName() : null)      // ✅ fixed
                 .build();
     }
 
@@ -133,7 +135,6 @@ public class ComplaintService {
         if (worker.getRole() != Role.WORKER) {
             throw new UnauthorizedException("Assigned user is not a worker");
         }
-
         String prevStatus = complaint.getStatus().name();
         complaint.setAssignedWorker(worker);
         complaint.setStatus(ComplaintStatus.ASSIGNED);
@@ -167,7 +168,6 @@ public class ComplaintService {
         if (newWorker.getRole() != Role.WORKER) {
             throw new UnauthorizedException("Assigned user is not a worker");
         }
-
         User oldWorker    = complaint.getAssignedWorker();
         String prevStatus = complaint.getStatus().name();
         complaint.setAssignedWorker(newWorker);
@@ -210,7 +210,6 @@ public class ComplaintService {
         if (complaint.getStatus() == ComplaintStatus.CLOSED) {
             throw new RuntimeException("Cannot reject a closed complaint");
         }
-
         String prevStatus = complaint.getStatus().name();
         complaint.setStatus(ComplaintStatus.REJECTED);
         complaint.setRejectionReason(reason.trim());
@@ -242,7 +241,6 @@ public class ComplaintService {
                 !complaint.getAssignedWorker().getId().equals(worker.getId())) {
             throw new UnauthorizedException("You are not assigned to this complaint");
         }
-
         String prevStatus = complaint.getStatus().name();
         complaint.setStatus(request.getStatus());
         if (request.getResolvedPhotoUrl() != null) {
@@ -269,7 +267,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Close + Rate ────────────────────────────────────────────────────────
+    // ─── Close ───────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse closeComplaint(Long complaintId,
@@ -286,13 +284,11 @@ public class ComplaintService {
         if (complaint.getStatus() != ComplaintStatus.RESOLVED) {
             throw new RuntimeException("Complaint must be RESOLVED before closing");
         }
-
         if (request != null && request.getRating() != null) {
             int r = request.getRating();
             if (r < 1 || r > 5) throw new RuntimeException("Rating must be between 1 and 5");
             complaint.setRating(r);
         }
-
         complaint.setStatus(ComplaintStatus.CLOSED);
         Complaint saved = complaintRepository.save(complaint);
 
@@ -328,9 +324,7 @@ public class ComplaintService {
     @Transactional(readOnly = true)
     public StudentDashboardStatsResponse getStudentDashboardStats(String email) {
         User user = getUser(email);
-        if (user.getRole() != Role.STUDENT) {
-            throw new UnauthorizedException("Access denied");
-        }
+        if (user.getRole() != Role.STUDENT) throw new UnauthorizedException("Access denied");
         return new StudentDashboardStatsResponse(
                 complaintRepository.countByStudent(user),
                 complaintRepository.countByStudentAndStatus(user, ComplaintStatus.CREATED)
@@ -342,32 +336,23 @@ public class ComplaintService {
         );
     }
 
-    // ✅ Worker dashboard stats — uses @Query AVG, no list fetch
     @Transactional(readOnly = true)
     public WorkerDashboardStatsResponse getWorkerDashboardStats(String email) {
         User worker = getUser(email);
-        if (worker.getRole() != Role.WORKER) {
-            throw new UnauthorizedException("Access denied");
-        }
-
+        if (worker.getRole() != Role.WORKER) throw new UnauthorizedException("Access denied");
         long assigned   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.ASSIGNED);
         long inProgress = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.IN_PROGRESS);
         long resolved   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.RESOLVED);
         long closed     = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.CLOSED);
-
-        // ✅ Fixed — use @Query method, no list fetching
         Double raw = complaintRepository.findAverageRatingByWorker(worker);
         Double averageRating = raw != null ? Math.round(raw * 10.0) / 10.0 : null;
-
         return new WorkerDashboardStatsResponse(assigned, inProgress, resolved, closed, averageRating);
     }
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(String email) {
         User user = getUser(email);
-        if (!isStaff(user.getRole())) {
-            throw new UnauthorizedException("Access denied");
-        }
+        if (!isStaff(user.getRole())) throw new UnauthorizedException("Access denied");
         return new DashboardStatsResponse(
                 complaintRepository.count(),
                 complaintRepository.countByStatus(ComplaintStatus.CREATED),
@@ -390,21 +375,16 @@ public class ComplaintService {
         return toResponse(complaint);
     }
 
-    // ─── Worker Stats by Admin ───────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public WorkerDashboardStatsResponse getWorkerStatsByAdmin(Long workerId) {
         User worker = userRepository.findById(workerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found"));
-
         long assigned   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.ASSIGNED);
         long inProgress = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.IN_PROGRESS);
         long resolved   = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.RESOLVED);
         long closed     = complaintRepository.countByAssignedWorkerAndStatus(worker, ComplaintStatus.CLOSED);
-
         Double raw = complaintRepository.findAverageRatingByWorker(worker);
         Double averageRating = raw != null ? Math.round(raw * 10.0) / 10.0 : null;
-
         return new WorkerDashboardStatsResponse(assigned, inProgress, resolved, closed, averageRating);
     }
 }

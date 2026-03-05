@@ -2,6 +2,7 @@ package com.hostel.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hostel.backend.enums.Role;
+import com.hostel.backend.enums.WorkerType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,10 +10,10 @@ import lombok.*;
 @Table(
     name = "users",
     indexes = {
-        @Index(name = "idx_user_email",         columnList = "email"),        // ✅ login lookup
-        @Index(name = "idx_user_role",           columnList = "role"),         // ✅ filter by role
-        @Index(name = "idx_user_active",         columnList = "active"),       // ✅ active users filter
-        @Index(name = "idx_user_scholar_number", columnList = "scholarNumber") // ✅ student lookup
+        @Index(name = "idx_user_email",         columnList = "email"),
+        @Index(name = "idx_user_role",           columnList = "role"),
+        @Index(name = "idx_user_active",         columnList = "active"),
+        @Index(name = "idx_user_scholar_number", columnList = "scholarNumber")
     }
 )
 @Data
@@ -45,10 +46,42 @@ public class User {
     @Column(unique = true)
     private String scholarNumber;
 
-    private String hostelBlock;
-    private String roomNumber;
-    private String department;
+    // ── Student fields ─────────────────────────────────
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hostel_id")
+    private Hostel hostel;                // student's hostel
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "block_id")
+    private Block block;                  // student's block
+
+    @Column
+    private String roomNumber;
+
+    // ── Warden / Caretaker assignment ──────────────────
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_hostel_id")
+    private Hostel assignedHostel;        // covers full hostel
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_block_id")
+    private Block assignedBlock;          // covers single block only
+
+    // ── Dept Head / Institute Worker ───────────────────
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;        // dept head's or institute worker's dept
+
+    // ── Worker fields ──────────────────────────────────
+    @Enumerated(EnumType.STRING)
+    @Column
+    private WorkerType workerType;        // HOSTEL or INSTITUTE
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean appEnabled = true;    // false = offline worker
+
+    // ── Common ─────────────────────────────────────────
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;

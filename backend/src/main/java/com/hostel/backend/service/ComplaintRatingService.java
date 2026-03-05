@@ -37,17 +37,14 @@ public class ComplaintRatingService {
     public RatingResponse submitRating(Long complaintId, String email, RatingRequest request) {
         User student = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
         if (student.getRole() != Role.STUDENT) {
             throw new UnauthorizedException("Only students can rate complaints");
         }
         if (request.getRating() < 1 || request.getRating() > 5) {
             throw new RuntimeException("Rating must be between 1 and 5");
         }
-
         Complaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new ResourceNotFoundException("Complaint not found"));
-
         if (!complaint.getStudent().getId().equals(student.getId())) {
             throw new UnauthorizedException("You can only rate your own complaints");
         }
@@ -60,7 +57,6 @@ public class ComplaintRatingService {
         if (ratingRepository.existsByComplaintId(complaintId)) {
             throw new RuntimeException("You have already rated this complaint");
         }
-
         ComplaintRating rating = ComplaintRating.builder()
                 .complaintId(complaintId)
                 .workerId(complaint.getAssignedWorker().getId())
@@ -68,7 +64,6 @@ public class ComplaintRatingService {
                 .rating(request.getRating())
                 .comment(request.getComment())
                 .build();
-
         return toResponse(ratingRepository.save(rating),
                 complaint.getAssignedWorker().getName());
     }
@@ -91,7 +86,8 @@ public class ComplaintRatingService {
         return WorkerRatingSummary.builder()
                 .workerId(workerId)
                 .workerName(worker.getName())
-                .department(worker.getDepartment())
+                .department(worker.getDepartment() != null
+                        ? worker.getDepartment().getName() : null) // ✅ fixed
                 .averageRating(avg != null ? Math.round(avg * 10.0) / 10.0 : 0.0)
                 .totalRatings(count != null ? count : 0L)
                 .build();

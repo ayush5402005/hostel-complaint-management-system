@@ -41,8 +41,6 @@ public class AdminService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .phoneNumber(request.getPhoneNumber())
-                .department(request.getDepartment())
-                .hostelBlock(request.getHostelBlock())
                 .active(true)
                 .build();
         return userRepository.save(user);
@@ -68,8 +66,6 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         if (request.getName() != null)        user.setName(request.getName());
         if (request.getPhoneNumber() != null)  user.setPhoneNumber(request.getPhoneNumber());
-        if (request.getDepartment() != null)   user.setDepartment(request.getDepartment());
-        if (request.getHostelBlock() != null)  user.setHostelBlock(request.getHostelBlock());
         if (request.getRoomNumber() != null)   user.setRoomNumber(request.getRoomNumber());
         return userRepository.save(user);
     }
@@ -102,20 +98,16 @@ public class AdminService {
         long resolved   = complaintRepository.countByStatus(ComplaintStatus.RESOLVED);
         long closed     = complaintRepository.countByStatus(ComplaintStatus.CLOSED);
         long rejected   = complaintRepository.countByStatus(ComplaintStatus.REJECTED);
-        return new DashboardStatsResponse(total, created, assigned, inProgress, resolved, closed, rejected);
+        return new DashboardStatsResponse(total, created, assigned, inProgress,
+                                          resolved, closed, rejected);
     }
 
     private AdminUserResponse mapToAdminUserResponse(User user) {
-
-        // ✅ Use @Query method directly — no manual list fetching
         Double averageRating = null;
         if (user.getRole() == Role.WORKER) {
             Double raw = complaintRepository.findAverageRatingByWorker(user);
-            if (raw != null) {
-                averageRating = Math.round(raw * 10.0) / 10.0;
-            }
+            if (raw != null) averageRating = Math.round(raw * 10.0) / 10.0;
         }
-
         return AdminUserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
@@ -123,9 +115,9 @@ public class AdminService {
                 .role(user.getRole())
                 .phoneNumber(user.getPhoneNumber())
                 .scholarNumber(user.getScholarNumber())
-                .hostelBlock(user.getHostelBlock())
+                .hostelBlock(user.getBlock() != null ? user.getBlock().getName() : null)
                 .roomNumber(user.getRoomNumber())
-                .department(user.getDepartment())
+                .department(user.getDepartment() != null ? user.getDepartment().getName() : null)
                 .active(user.isActive())
                 .averageRating(averageRating)
                 .build();

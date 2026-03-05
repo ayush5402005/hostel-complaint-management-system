@@ -30,28 +30,21 @@ public class AuthService {
     }
 
     public User register(RegisterRequest request) {
-
         if (request.getRole() != null && request.getRole() != Role.STUDENT) {
             throw new AppException("Self-registration is only allowed for STUDENT role", HttpStatus.FORBIDDEN);
         }
-
         if (request.getName() == null || request.getEmail() == null ||
             request.getPassword() == null || request.getPhoneNumber() == null) {
             throw new AppException("Required fields are missing", HttpStatus.BAD_REQUEST);
         }
-
         if (!request.getEmail().endsWith("@stu.manit.ac.in")) {
             throw new AppException("Students must register with college email (@stu.manit.ac.in)", HttpStatus.BAD_REQUEST);
         }
-
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new AppException("Email already registered", HttpStatus.CONFLICT);
         }
-
-        if (request.getScholarNumber() == null ||
-            request.getHostelBlock() == null ||
-            request.getRoomNumber() == null) {
-            throw new AppException("scholarNumber, hostelBlock and roomNumber are required", HttpStatus.BAD_REQUEST);
+        if (request.getScholarNumber() == null || request.getRoomNumber() == null) {
+            throw new AppException("scholarNumber and roomNumber are required", HttpStatus.BAD_REQUEST);
         }
 
         User user = User.builder()
@@ -61,9 +54,7 @@ public class AuthService {
                 .role(Role.STUDENT)
                 .phoneNumber(request.getPhoneNumber())
                 .scholarNumber(request.getScholarNumber())
-                .hostelBlock(request.getHostelBlock())
                 .roomNumber(request.getRoomNumber())
-                .department(null)
                 .active(false)
                 .build();
 
@@ -73,20 +64,15 @@ public class AuthService {
     }
 
     public Map<String, String> login(String email, String password) {
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
-
         if (!user.isActive()) {
             throw new AppException("Account not verified. Please verify your email first.", HttpStatus.FORBIDDEN);
         }
-
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new AppException("Invalid credentials", HttpStatus.UNAUTHORIZED);
         }
-
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
-
         return Map.of(
             "token", token,
             "role", user.getRole().name(),
