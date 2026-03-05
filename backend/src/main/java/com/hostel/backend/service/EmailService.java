@@ -4,6 +4,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import com.hostel.backend.exception.AppException;
 
 @Service
 public class EmailService {

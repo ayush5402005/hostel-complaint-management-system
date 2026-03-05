@@ -25,7 +25,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Map<String, int[]> RULES = Map.of(
         "/api/auth/login",      new int[]{5,  15 * 60},  // 5 requests per 15 min
         "/api/auth/verify-otp", new int[]{5,  15 * 60},  // 5 requests per 15 min
-        "/api/auth/resend-otp", new int[]{3,  60 * 60}   // 3 requests per 1 hour
+        "/api/auth/resend-otp", new int[]{3,  60 * 60},   // 3 requests per 1 hour
+        "/api/auth/forgot-password",  new int[]{3, 60 * 60}
     );
 
     @Override
