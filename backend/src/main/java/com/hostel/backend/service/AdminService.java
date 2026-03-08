@@ -10,6 +10,7 @@ import com.hostel.backend.repository.DepartmentRepository;
 import com.hostel.backend.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,16 +21,16 @@ public class AdminService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ComplaintRepository complaintRepository;
-    private final DepartmentRepository departmentRepository; // ✅ NEW
+    private final DepartmentRepository departmentRepository;
 
     public AdminService(UserRepository userRepository,
                         PasswordEncoder passwordEncoder,
                         ComplaintRepository complaintRepository,
-                        DepartmentRepository departmentRepository) { // ✅ NEW
+                        DepartmentRepository departmentRepository) {
         this.userRepository       = userRepository;
         this.passwordEncoder      = passwordEncoder;
         this.complaintRepository  = complaintRepository;
-        this.departmentRepository = departmentRepository; // ✅ NEW
+        this.departmentRepository = departmentRepository;
     }
 
     // ── User Creation ─────────────────────────────────────────────
@@ -51,7 +52,6 @@ public class AdminService {
                 .phoneNumber(request.getPhoneNumber())
                 .active(true);
 
-        // ✅ NEW — assign department if provided (for DEPT_HEAD)
         if (request.getDepartmentId() != null) {
             Department dept = departmentRepository.findById(request.getDepartmentId())
                     .orElseThrow(() -> new RuntimeException("Department not found"));
@@ -63,6 +63,7 @@ public class AdminService {
 
     // ── User Queries ──────────────────────────────────────────────
 
+    @Transactional(readOnly = true) // ✅ keeps session open for lazy fields
     public List<AdminUserResponse> getAllUsers() {
         return userRepository.findAll()
                 .stream()
@@ -70,6 +71,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true) // ✅ keeps session open for lazy fields
     public List<AdminUserResponse> getUsersByRole(Role role) {
         return userRepository.findAll()
                 .stream()
@@ -111,7 +113,6 @@ public class AdminService {
 
     // ── Departments ───────────────────────────────────────────────
 
-    // ✅ NEW
     public List<Department> getAllDepartments() {
         return departmentRepository.findAll();
     }
