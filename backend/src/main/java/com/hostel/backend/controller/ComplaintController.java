@@ -6,8 +6,11 @@ import com.hostel.backend.service.ComplaintService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/complaints")
@@ -63,7 +66,6 @@ public class ComplaintController {
                 complaintService.updateStatus(id, request, authentication.getName()));
     }
 
-    // ✅ Updated — accepts rating in body
     @PutMapping("/{id}/close")
     public ResponseEntity<ComplaintResponse> closeComplaint(
             @PathVariable Long id,
@@ -71,6 +73,22 @@ public class ComplaintController {
             Authentication authentication) {
         return ResponseEntity.ok(
                 complaintService.closeComplaint(id, request, authentication.getName()));
+    }
+
+    // ✅ NEW — Forward complaint to a department (caretaker/admin only)
+    // Body: { "departmentId": 1 }
+    @PutMapping("/{id}/forward")
+    @PreAuthorize("hasAnyRole('CARETAKER', 'ADMIN')")
+    public ResponseEntity<ComplaintResponse> forwardToDepartment(
+            @PathVariable Long id,
+            @RequestBody Map<String, Long> body,
+            Authentication authentication) {
+        Long departmentId = body.get("departmentId");
+        if (departmentId == null) {
+            throw new RuntimeException("departmentId is required");
+        }
+        return ResponseEntity.ok(
+                complaintService.forwardToDepartment(id, departmentId, authentication.getName()));
     }
 
     @GetMapping
@@ -96,7 +114,6 @@ public class ComplaintController {
                 complaintService.getStudentDashboardStats(authentication.getName()));
     }
 
-    // ✅ NEW — Worker dashboard stats
     @GetMapping("/dashboard/worker")
     public ResponseEntity<WorkerDashboardStatsResponse> getWorkerDashboard(
             Authentication authentication) {
