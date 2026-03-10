@@ -13,11 +13,12 @@ public class Department {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name;          // e.g. "Electrical", "WiFi & Internet"
+    private String name;
 
     @Column
-    private String description;   // optional details about dept
+    private String description;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
 }
