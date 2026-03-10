@@ -3,18 +3,23 @@ package com.hostel.backend.service;
 import com.hostel.backend.dto.*;
 import com.hostel.backend.entity.Complaint;
 import com.hostel.backend.entity.User;
+import com.hostel.backend.enums.ComplaintCategory;
+import com.hostel.backend.enums.ComplaintPriority;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.enums.Role;
 import com.hostel.backend.exception.ResourceNotFoundException;
 import com.hostel.backend.exception.UnauthorizedException;
 import com.hostel.backend.repository.ComplaintRepository;
 import com.hostel.backend.repository.UserRepository;
+import com.hostel.backend.specification.ComplaintSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -303,29 +308,26 @@ public class ComplaintService {
     // ─── Queries ─────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public Page<ComplaintResponse> getComplaintsByRole(String email, int page,
-                                                        int size, ComplaintStatus status,
-                                                        String blockName) {
+    public Page<ComplaintResponse> getComplaintsByRole(String email, int page, int size,
+                                                        ComplaintStatus status,
+                                                        String blockName,
+                                                        ComplaintCategory category,
+                                                        ComplaintPriority priority,
+                                                        LocalDate dateFrom,
+                                                        LocalDate dateTo) {
         User user = getUser(email);
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
         return switch (user.getRole()) {
-            case STUDENT -> status != null
-                    ? complaintRepository.findByStatusAndStudent(status, user, pageable).map(this::toResponse)
-                    : complaintRepository.findByStudent(user, pageable).map(this::toResponse);
-            case WORKER -> status != null
-                    ? complaintRepository.findByAssignedWorkerAndStatus(user, status, pageable).map(this::toResponse)
-                    : complaintRepository.findByAssignedWorker(user, pageable).map(this::toResponse);
-            case ADMIN, CARETAKER, WARDEN -> {
-                if (blockName != null && !blockName.isBlank()) {
-                    yield status != null
-                            ? complaintRepository.findByBlockNameAndStatus(blockName, status, pageable).map(this::toResponse)
-                            : complaintRepository.findByBlockName(blockName, pageable).map(this::toResponse);
-                } else {
-                    yield status != null
-                            ? complaintRepository.findByStatus(status, pageable).map(this::toResponse)
-                            : complaintRepository.findAll(pageable).map(this::toResponse);
-                }
-            }
+            case STUDENT -> complaintRepository.findAll(
+                    ComplaintSpecification.forStudent(user, status, category, priority, dateFrom, dateTo),
+                    pageable).map(this::toResponse);
+            case WORKER -> complaintRepository.findAll(
+                    ComplaintSpecification.forWorker(user, status, category, priority, dateFrom, dateTo),
+                    pageable).map(this::toResponse);
+            case ADMIN, CARETAKER, WARDEN -> complaintRepository.findAll(
+                    ComplaintSpecification.forStaff(status, blockName, category, priority, dateFrom, dateTo),
+                    pageable).map(this::toResponse);
             default -> throw new UnauthorizedException("Invalid role for this operation");
         };
     }

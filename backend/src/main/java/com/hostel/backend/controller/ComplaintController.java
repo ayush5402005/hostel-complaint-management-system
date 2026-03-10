@@ -1,13 +1,18 @@
 package com.hostel.backend.controller;
 
 import com.hostel.backend.dto.*;
+import com.hostel.backend.enums.ComplaintCategory;
+import com.hostel.backend.enums.ComplaintPriority;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.service.ComplaintService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/complaints")
@@ -75,13 +80,18 @@ public class ComplaintController {
     @GetMapping
     public ResponseEntity<Page<ComplaintResponse>> getComplaints(
             Authentication authentication,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) ComplaintStatus status,
-            @RequestParam(required = false) String blockName) {
+            @RequestParam(required = false) String blockName,
+            @RequestParam(required = false) ComplaintCategory category,
+            @RequestParam(required = false) ComplaintPriority priority,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
         return ResponseEntity.ok(
                 complaintService.getComplaintsByRole(
-                        authentication.getName(), page, size, status, blockName));
+                        authentication.getName(), page, size,
+                        status, blockName, category, priority, dateFrom, dateTo));
     }
 
     @GetMapping("/dashboard")

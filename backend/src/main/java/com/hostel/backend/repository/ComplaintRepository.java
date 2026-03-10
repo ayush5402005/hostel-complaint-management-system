@@ -6,6 +6,7 @@ import com.hostel.backend.enums.ComplaintStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +14,8 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
+public interface ComplaintRepository extends JpaRepository<Complaint, Long>,
+        JpaSpecificationExecutor<Complaint> {
 
     // ── Student ───────────────────────────────────────────────────
     Page<Complaint> findByStudent(User student, Pageable pageable);
@@ -38,13 +40,4 @@ public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
     long countByStatus(ComplaintStatus status);
 
     List<Complaint> findByStatusIn(List<ComplaintStatus> statuses);
-
-    // ── Block scoped (Caretaker / Warden / Admin) ─────────────────
-    @Query("SELECT c FROM Complaint c WHERE c.block.name = :blockName")
-    Page<Complaint> findByBlockName(@Param("blockName") String blockName, Pageable pageable);
-
-    @Query("SELECT c FROM Complaint c WHERE c.block.name = :blockName AND c.status = :status")
-    Page<Complaint> findByBlockNameAndStatus(@Param("blockName") String blockName,
-                                             @Param("status") ComplaintStatus status,
-                                             Pageable pageable);
 }
