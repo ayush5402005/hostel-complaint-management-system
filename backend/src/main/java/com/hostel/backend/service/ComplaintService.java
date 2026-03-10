@@ -2,15 +2,12 @@ package com.hostel.backend.service;
 
 import com.hostel.backend.dto.*;
 import com.hostel.backend.entity.Complaint;
-import com.hostel.backend.entity.Department;
 import com.hostel.backend.entity.User;
-import com.hostel.backend.enums.ComplaintPipeline;
 import com.hostel.backend.enums.ComplaintStatus;
 import com.hostel.backend.enums.Role;
 import com.hostel.backend.exception.ResourceNotFoundException;
 import com.hostel.backend.exception.UnauthorizedException;
 import com.hostel.backend.repository.ComplaintRepository;
-import com.hostel.backend.repository.DepartmentRepository;
 import com.hostel.backend.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +15,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -28,18 +24,15 @@ public class ComplaintService {
     private final UserRepository           userRepository;
     private final NotificationService      notificationService;
     private final ComplaintAuditLogService auditLogService;
-    private final DepartmentRepository     departmentRepository; // ✅ NEW
 
     public ComplaintService(ComplaintRepository complaintRepository,
                             UserRepository userRepository,
                             NotificationService notificationService,
-                            ComplaintAuditLogService auditLogService,
-                            DepartmentRepository departmentRepository) { // ✅ NEW
-        this.complaintRepository  = complaintRepository;
-        this.userRepository       = userRepository;
-        this.notificationService  = notificationService;
-        this.auditLogService      = auditLogService;
-        this.departmentRepository = departmentRepository; // ✅ NEW
+                            ComplaintAuditLogService auditLogService) {
+        this.complaintRepository = complaintRepository;
+        this.userRepository      = userRepository;
+        this.notificationService = notificationService;
+        this.auditLogService     = auditLogService;
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -80,9 +73,6 @@ public class ComplaintService {
                 .category(c.getCategory())
                 .priority(c.getPriority())
                 .status(c.getStatus())
-                .pipeline(c.getPipeline())                                          // ✅ NEW
-                .department(c.getDepartment() != null
-                        ? c.getDepartment().getName() : null)                       // ✅ NEW
                 .issuePhotoUrl(c.getIssuePhotoUrl())
                 .resolvedPhotoUrl(c.getResolvedPhotoUrl())
                 .rejectionReason(c.getRejectionReason())
@@ -111,8 +101,8 @@ public class ComplaintService {
                 .description(request.getDescription())
                 .issuePhotoUrl(request.getImageUrl())
                 .status(ComplaintStatus.CREATED)
-                .hostel(user.getHostel())       // ✅ copy from student
-                .block(user.getBlock())         // ✅ copy from student
+                .hostel(user.getHostel())
+                .block(user.getBlock())
                 .student(user)
                 .build();
         Complaint saved = complaintRepository.save(complaint);
@@ -127,55 +117,6 @@ public class ComplaintService {
         staff.forEach(s -> notificationService.sendNotification(s,
                 user.getName() + " filed a new complaint: " + saved.getTitle(),
                 "COMPLAINT_CREATED"));
-
-        return toResponse(saved);
-    }
-
-    // ─── Forward to Department (Caretaker) ───────────────────────────────────
-
-    @Transactional
-    public ComplaintResponse forwardToDepartment(Long complaintId, Long departmentId, String email) {
-        User caretaker = getUser(email);
-        if (caretaker.getRole() != Role.CARETAKER && caretaker.getRole() != Role.ADMIN) {
-            throw new UnauthorizedException("Only caretaker or admin can forward complaints to a department");
-        }
-
-        Complaint complaint = getComplaint(complaintId);
-
-        if (complaint.getStatus() == ComplaintStatus.CLOSED ||
-            complaint.getStatus() == ComplaintStatus.RESOLVED) {
-            throw new RuntimeException("Cannot forward a closed or resolved complaint");
-        }
-
-        Department department = departmentRepository.findById(departmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Department not found: " + departmentId));
-
-        String prevStatus = complaint.getStatus().name();
-
-        complaint.setPipeline(ComplaintPipeline.INSTITUTE);
-        complaint.setDepartment(department);
-        complaint.setForwardedBy(caretaker);
-        complaint.setForwardedAt(LocalDateTime.now());
-        complaint.setStatus(ComplaintStatus.FORWARDED);
-
-        Complaint saved = complaintRepository.save(complaint);
-
-        auditLogService.log(saved.getId(), caretaker,
-                prevStatus, ComplaintStatus.FORWARDED.name(),
-                "Forwarded to department: " + department.getName());
-
-        // Notify all dept heads of this department
-        userRepository.findByRole(Role.DEPT_HEAD).stream()
-                .filter(u -> u.getDepartment() != null &&
-                             u.getDepartment().getId().equals(departmentId))
-                .forEach(deptHead -> notificationService.sendNotification(deptHead,
-                        "New complaint forwarded to " + department.getName() + ": " + saved.getTitle(),
-                        "COMPLAINT_FORWARDED"));
-
-        // Notify student
-        notificationService.sendNotification(saved.getStudent(),
-                "Your complaint '" + saved.getTitle() + "' has been forwarded to " + department.getName(),
-                "STATUS_UPDATED");
 
         return toResponse(saved);
     }
@@ -213,7 +154,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Reassign ─────────────────────────────────────────────────────────────
+    // ─── Reassign ────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse reassignWorker(Long complaintId, Long newWorkerId, String email) {
@@ -326,7 +267,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Close ────────────────────────────────────────────────────────────────
+    // ─── Close ───────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse closeComplaint(Long complaintId,
@@ -359,7 +300,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Queries ──────────────────────────────────────────────────────────────
+    // ─── Queries ─────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<ComplaintResponse> getComplaintsByRole(String email, int page,
@@ -376,11 +317,6 @@ public class ComplaintService {
             case ADMIN, CARETAKER, WARDEN -> status != null
                     ? complaintRepository.findByStatus(status, pageable).map(this::toResponse)
                     : complaintRepository.findAll(pageable).map(this::toResponse);
-            case DEPT_HEAD -> status != null                                        // ✅ NEW
-                    ? complaintRepository.findByDepartmentIdAndStatus(
-                            user.getDepartment().getId(), status, pageable).map(this::toResponse)
-                    : complaintRepository.findByDepartmentId(
-                            user.getDepartment().getId(), pageable).map(this::toResponse);
             default -> throw new UnauthorizedException("Invalid role for this operation");
         };
     }

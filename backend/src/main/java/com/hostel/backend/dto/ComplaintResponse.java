@@ -1,7 +1,6 @@
 package com.hostel.backend.dto;
 
 import com.hostel.backend.enums.ComplaintCategory;
-import com.hostel.backend.enums.ComplaintPipeline;
 import com.hostel.backend.enums.ComplaintPriority;
 import com.hostel.backend.enums.ComplaintStatus;
 import lombok.*;
@@ -19,9 +18,6 @@ public class ComplaintResponse {
     private ComplaintCategory category;
     private ComplaintPriority priority;
     private ComplaintStatus status;
-
-    private ComplaintPipeline pipeline;   // ✅ NEW — HOSTEL or INSTITUTE
-    private String department;            // ✅ NEW — department name if forwarded
 
     private String issuePhotoUrl;
     private String resolvedPhotoUrl;

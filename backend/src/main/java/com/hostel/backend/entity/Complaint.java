@@ -20,9 +20,8 @@ import java.util.List;
         @Index(name = "idx_complaint_priority",       columnList = "priority"),
         @Index(name = "idx_complaint_created_at",     columnList = "createdAt"),
         @Index(name = "idx_complaint_student_status", columnList = "student_id,status"),
-        @Index(name = "idx_complaint_hostel_id",      columnList = "hostel_id"),   // ✅ NEW
-        @Index(name = "idx_complaint_block_id",       columnList = "block_id"),    // ✅ NEW
-        @Index(name = "idx_complaint_pipeline",       columnList = "pipeline")     // ✅ NEW
+        @Index(name = "idx_complaint_hostel_id",      columnList = "hostel_id"),
+        @Index(name = "idx_complaint_block_id",       columnList = "block_id")
     }
 )
 @Data
@@ -44,14 +43,6 @@ public class Complaint {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ComplaintCategory category;
-
-    @Column(length = 200)
-    private String subCategory;                    // ✅ NEW — e.g. "Tubelight not working"
-
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    @Builder.Default
-    private ComplaintPipeline pipeline = ComplaintPipeline.HOSTEL; // ✅ NEW — set by caretaker
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -76,7 +67,7 @@ public class Complaint {
     private Integer rating;
 
     @Column(length = 1000)
-    private String reviewText;                     // ✅ NEW — optional text review by student
+    private String reviewText;
 
     @Column(nullable = false)
     @Builder.Default
@@ -88,12 +79,12 @@ public class Complaint {
 
     private LocalDateTime lastSlaNotifiedAt;
 
-    // ── Availability slots (optional, for room visits) ─────────────────────
+    // ── Availability slots (optional, for room visits) ──────────────────────
     @Column(length = 20)
-    private String slot1Day;                       // ✅ NEW — Today / Tomorrow / Day after
+    private String slot1Day;
 
     @Column(length = 100)
-    private String slot1Time;                      // ✅ NEW — e.g. "2:00 PM - 4:00 PM"
+    private String slot1Time;
 
     @Column(length = 20)
     private String slot2Day;
@@ -107,7 +98,7 @@ public class Complaint {
     @Column(length = 100)
     private String slot3Time;
 
-    // ── Relationships ───────────────────────────────────────────────────────
+    // ── Relationships ────────────────────────────────────────────────────────
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
@@ -120,27 +111,14 @@ public class Complaint {
     private User assignedWorker;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "hostel_id")                // ✅ NEW — copied from student at creation
+    @JoinColumn(name = "hostel_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Hostel hostel;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "block_id")                 // ✅ NEW — copied from student at creation
+    @JoinColumn(name = "block_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Block block;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id")            // ✅ NEW — set when caretaker forwards to dept
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private Department department;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "forwarded_by_id")          // ✅ NEW — caretaker who forwarded
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private User forwardedBy;
-
-    @Column
-    private LocalDateTime forwardedAt;             // ✅ NEW — when it was forwarded
 
     @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

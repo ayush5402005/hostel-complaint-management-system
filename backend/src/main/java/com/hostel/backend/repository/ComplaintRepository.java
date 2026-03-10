@@ -38,11 +38,4 @@ public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
     long countByStatus(ComplaintStatus status);
 
     List<Complaint> findByStatusIn(List<ComplaintStatus> statuses);
-
-    // ── Dept Head ─────────────────────────────────────────────────
-    Page<Complaint> findByDepartmentId(Long departmentId, Pageable pageable);
-    Page<Complaint> findByDepartmentIdAndStatus(Long departmentId, ComplaintStatus status, Pageable pageable);
-
-    long countByDepartmentId(Long departmentId);
-    long countByDepartmentIdAndStatus(Long departmentId, ComplaintStatus status);
 }

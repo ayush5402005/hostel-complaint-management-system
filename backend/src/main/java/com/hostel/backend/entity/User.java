@@ -2,7 +2,6 @@ package com.hostel.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hostel.backend.enums.Role;
-import com.hostel.backend.enums.WorkerType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -58,30 +57,25 @@ public class User {
     @Column
     private String roomNumber;
 
-    // ── Warden / Caretaker assignment ──────────────────
+    // ── Warden / Caretaker scope ───────────────────────
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_hostel_id")
-    private Hostel assignedHostel;        // covers full hostel
+    private Hostel assignedHostel;        // sees all complaints in this hostel
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_block_id")
-    private Block assignedBlock;          // covers single block only
+    private Block assignedBlock;          // sees only this block's complaints
 
-    // ── Dept Head / Institute Worker ───────────────────
+    // ── Worker department ──────────────────────────────
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
-    private Department department;        // dept head's or institute worker's dept
+    private Department department;        // worker's department for categorization
 
-    // ── Worker fields ──────────────────────────────────
-    @Enumerated(EnumType.STRING)
-    @Column
-    private WorkerType workerType;        // HOSTEL or INSTITUTE
-
+    // ── Common ─────────────────────────────────────────
     @Builder.Default
     @Column(nullable = false)
     private boolean appEnabled = true;    // false = offline worker
 
-    // ── Common ─────────────────────────────────────────
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;

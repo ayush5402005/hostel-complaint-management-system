@@ -49,14 +49,6 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
-    // ✅ NEW — Create Dept Head
-    @PostMapping("/create-dept-head")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> createDeptHead(@RequestBody RegisterRequest request) {
-        User user = adminService.createUserWithRole(request, Role.DEPT_HEAD);
-        return ResponseEntity.ok(user);
-    }
-
     // ── User Management ───────────────────────────────────────────
 
     @GetMapping("/users")
@@ -75,13 +67,6 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('ADMIN', 'WARDEN', 'CARETAKER')")
     public ResponseEntity<List<AdminUserResponse>> getWorkers() {
         return ResponseEntity.ok(adminService.getUsersByRole(Role.WORKER));
-    }
-
-    // ✅ NEW — List all dept heads
-    @GetMapping("/dept-heads")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AdminUserResponse>> getDeptHeads() {
-        return ResponseEntity.ok(adminService.getUsersByRole(Role.DEPT_HEAD));
     }
 
     @PutMapping("/users/{id}")
@@ -115,7 +100,6 @@ public class AdminController {
 
     // ── Departments ───────────────────────────────────────────────
 
-    // ✅ NEW — List all departments
     @GetMapping("/departments")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<Department>> getAllDepartments() {
