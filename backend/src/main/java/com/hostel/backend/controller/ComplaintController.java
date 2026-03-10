@@ -77,9 +77,11 @@ public class ComplaintController {
             Authentication authentication,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
-            @RequestParam(required = false) ComplaintStatus status) {
+            @RequestParam(required = false) ComplaintStatus status,
+            @RequestParam(required = false) String blockName) {
         return ResponseEntity.ok(
-                complaintService.getComplaintsByRole(authentication.getName(), page, size, status));
+                complaintService.getComplaintsByRole(
+                        authentication.getName(), page, size, status, blockName));
     }
 
     @GetMapping("/dashboard")

@@ -38,4 +38,13 @@ public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
     long countByStatus(ComplaintStatus status);
 
     List<Complaint> findByStatusIn(List<ComplaintStatus> statuses);
+
+    // ── Block scoped (Caretaker / Warden / Admin) ─────────────────
+    @Query("SELECT c FROM Complaint c WHERE c.block.name = :blockName")
+    Page<Complaint> findByBlockName(@Param("blockName") String blockName, Pageable pageable);
+
+    @Query("SELECT c FROM Complaint c WHERE c.block.name = :blockName AND c.status = :status")
+    Page<Complaint> findByBlockNameAndStatus(@Param("blockName") String blockName,
+                                             @Param("status") ComplaintStatus status,
+                                             Pageable pageable);
 }

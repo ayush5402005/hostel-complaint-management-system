@@ -304,7 +304,8 @@ public class ComplaintService {
 
     @Transactional(readOnly = true)
     public Page<ComplaintResponse> getComplaintsByRole(String email, int page,
-                                                        int size, ComplaintStatus status) {
+                                                        int size, ComplaintStatus status,
+                                                        String blockName) {
         User user = getUser(email);
         Pageable pageable = PageRequest.of(page, size);
         return switch (user.getRole()) {
@@ -314,9 +315,17 @@ public class ComplaintService {
             case WORKER -> status != null
                     ? complaintRepository.findByAssignedWorkerAndStatus(user, status, pageable).map(this::toResponse)
                     : complaintRepository.findByAssignedWorker(user, pageable).map(this::toResponse);
-            case ADMIN, CARETAKER, WARDEN -> status != null
-                    ? complaintRepository.findByStatus(status, pageable).map(this::toResponse)
-                    : complaintRepository.findAll(pageable).map(this::toResponse);
+            case ADMIN, CARETAKER, WARDEN -> {
+                if (blockName != null && !blockName.isBlank()) {
+                    yield status != null
+                            ? complaintRepository.findByBlockNameAndStatus(blockName, status, pageable).map(this::toResponse)
+                            : complaintRepository.findByBlockName(blockName, pageable).map(this::toResponse);
+                } else {
+                    yield status != null
+                            ? complaintRepository.findByStatus(status, pageable).map(this::toResponse)
+                            : complaintRepository.findAll(pageable).map(this::toResponse);
+                }
+            }
             default -> throw new UnauthorizedException("Invalid role for this operation");
         };
     }
