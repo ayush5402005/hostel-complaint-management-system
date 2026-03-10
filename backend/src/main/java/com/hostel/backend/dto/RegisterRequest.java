@@ -10,15 +10,14 @@ public class RegisterRequest {
     private String email;
     private String password;
     private Role role;
-
     private String phoneNumber;
 
-    // 👇 Student fields
+    // ── Student fields ─────────────────────────────────
     private String scholarNumber;
-    private String hostelBlock;
     private String roomNumber;
+    private Long hostelId;   // FK to hostels table
+    private Long blockId;    // FK to blocks table
 
-    // 👇 Staff fields
-    private String department;      // name (existing)
-    private Long departmentId;      // ✅ NEW — used when creating DEPT_HEAD
+    // ── Staff fields ───────────────────────────────────
+    private Long departmentId; // worker's department
 }
