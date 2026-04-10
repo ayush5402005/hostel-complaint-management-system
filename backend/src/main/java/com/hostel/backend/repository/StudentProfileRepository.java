@@ -13,11 +13,11 @@ public interface StudentProfileRepository extends JpaRepository<StudentProfile, 
     boolean existsByUserId(Long userId);
 
     boolean existsByHostelFeeUtrAndUserIdNot(String utr, Long userId);
-
+long countByProfileCompleteTrue();
     boolean existsByMessFeeUtrAndUserIdNot(String utr, Long userId);
 
     boolean existsByHostelFeeUtr(String utr);
-// Add this one line to fix the N+1 in CSV/PDF export:
-List<StudentProfile> findByUserIdIn(List<Long> userIds);
+
+List<StudentProfile> findByUser_IdIn(List<Long> userIds);
     boolean existsByMessFeeUtr(String utr);
 }
