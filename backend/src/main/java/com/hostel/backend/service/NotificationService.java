@@ -11,18 +11,46 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
+    private final UserRepository         userRepository;
+    private final Map<Long, SseEmitter>  emitters = new ConcurrentHashMap<>();
 
     public NotificationService(NotificationRepository notificationRepository,
                                 UserRepository userRepository) {
         this.notificationRepository = notificationRepository;
-        this.userRepository = userRepository;
+        this.userRepository         = userRepository;
     }
+
+    // ── SSE ──────────────────────────────────────────────────────────────────
+
+    public SseEmitter subscribe(String email) {
+        User user = getUser(email);
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
+
+        emitters.put(user.getId(), emitter);
+        emitter.onCompletion(() -> emitters.remove(user.getId()));
+        emitter.onTimeout(()    -> emitters.remove(user.getId()));
+        emitter.onError(e      -> emitters.remove(user.getId()));
+
+        try {
+            emitter.send(SseEmitter.event().name("CONNECTED").data("connected"));
+        } catch (IOException e) {
+            emitters.remove(user.getId());
+        }
+
+        return emitter;
+    }
+
+    // ── Send notification — saves to DB + pushes via SSE ─────────────────────
 
     public void sendNotification(User user, String message, String type) {
         Notification notification = Notification.builder()
@@ -31,8 +59,21 @@ public class NotificationService {
                 .type(type)
                 .isRead(false)
                 .build();
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+
+        SseEmitter emitter = emitters.get(user.getId());
+        if (emitter != null) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name(type)
+                        .data(toResponse(saved)));
+            } catch (IOException e) {
+                emitters.remove(user.getId());
+            }
+        }
     }
+
+    // ── REST ──────────────────────────────────────────────────────────────────
 
     public Page<NotificationResponse> getMyNotifications(String email, int page, int size) {
         User user = getUser(email);
@@ -51,11 +92,9 @@ public class NotificationService {
         User user = getUser(email);
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
-
         if (!notification.getUser().getId().equals(user.getId())) {
             throw new UnauthorizedException("Cannot access this notification");
         }
-
         notification.setRead(true);
         notificationRepository.save(notification);
     }
@@ -65,6 +104,8 @@ public class NotificationService {
         User user = getUser(email);
         notificationRepository.markAllAsReadForUser(user);
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User getUser(String email) {
         return userRepository.findByEmail(email)

@@ -3,6 +3,6 @@ package com.hostel.backend.dto;
 import lombok.Data;
 
 @Data
-public class ForgotPasswordRequest {
+public class ResendOtpRequest {
     private String email;
 }

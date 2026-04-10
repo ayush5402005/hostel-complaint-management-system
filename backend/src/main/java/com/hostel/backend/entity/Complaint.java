@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -54,21 +55,27 @@ public class Complaint {
     @Builder.Default
     private ComplaintStatus status = ComplaintStatus.CREATED;
 
-    @Column(length = 500)
-    private String issuePhotoUrl;
-
-    @Column(length = 500)
-    private String resolvedPhotoUrl;
+    // ── OLD single-photo columns removed ──────────────────────────────────
+    // issuePhotoUrl    → now in complaint_media (uploadedBy = STUDENT)
+    // resolvedPhotoUrl → now in complaint_media (uploadedBy = WORKER)
 
     @Column(length = 500)
     private String rejectionReason;
 
+    // ── Student review (after resolution) ─────────────────────────────────
     @Column
-    private Integer rating;
+    private Integer rating;             // 1–5 stars
 
     @Column(length = 1000)
-    private String reviewText;
+    private String reviewText;          // ✅ written review by student
 
+    // ── Dispute fields (when student flags as still unresolved) ───────────
+    @Column(length = 500)
+    private String disputeReason;       // ✅ why student says it's not resolved
+
+    private LocalDateTime disputedAt;   // ✅ when student raised the dispute
+
+    // ── SLA / escalation ──────────────────────────────────────────────────
     @Column(nullable = false)
     @Builder.Default
     private boolean isOverdue = false;
@@ -79,26 +86,15 @@ public class Complaint {
 
     private LocalDateTime lastSlaNotifiedAt;
 
-    // ── Availability slots (optional, for room visits) ──────────────────────
-    @Column(length = 20)
-    private String slot1Day;
+    // ── Availability slots ────────────────────────────────────────────────
+    @Column(length = 20)  private String slot1Day;
+    @Column(length = 100) private String slot1Time;
+    @Column(length = 20)  private String slot2Day;
+    @Column(length = 100) private String slot2Time;
+    @Column(length = 20)  private String slot3Day;
+    @Column(length = 100) private String slot3Time;
 
-    @Column(length = 100)
-    private String slot1Time;
-
-    @Column(length = 20)
-    private String slot2Day;
-
-    @Column(length = 100)
-    private String slot2Time;
-
-    @Column(length = 20)
-    private String slot3Day;
-
-    @Column(length = 100)
-    private String slot3Time;
-
-    // ── Relationships ────────────────────────────────────────────────────────
+    // ── Relationships ──────────────────────────────────────────────────────
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
@@ -119,6 +115,12 @@ public class Complaint {
     @JoinColumn(name = "block_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Block block;
+
+    // ✅ NEW — replaces issuePhotoUrl & resolvedPhotoUrl
+    @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL,
+               orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<ComplaintMedia> mediaFiles = new ArrayList<>();
 
     @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

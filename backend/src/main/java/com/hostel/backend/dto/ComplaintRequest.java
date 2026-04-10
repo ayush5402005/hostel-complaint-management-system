@@ -7,22 +7,33 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ComplaintRequest {
 
     @NotBlank(message = "Title is required")
-    @Size(min = 5, max = 200, message = "Title must be 5-200 characters")
+    @Size(max = 200)
     private String title;
+
+    @NotBlank(message = "Description is required")
+    @Size(max = 1000)
+    private String description;
 
     @NotNull(message = "Category is required")
     private ComplaintCategory category;
 
-    @NotNull(message = "Priority is required")
     private ComplaintPriority priority;
 
-    @NotBlank(message = "Description is required")
-    @Size(min = 10, max = 1000, message = "Description must be 10-1000 characters")
-    private String description;
+    // ✅ Max 3 photos — URLs from Cloudinary (uploaded on frontend before submitting)
+    @Size(max = 3, message = "Maximum 3 photos allowed")
+    private List<String> mediaUrls;
 
-    private String imageUrl;
+    // ── Availability slots ────────────────────────────────────────────────────
+    private String slot1Day;
+    private String slot1Time;
+    private String slot2Day;
+    private String slot2Time;
+    private String slot3Day;
+    private String slot3Time;
 }

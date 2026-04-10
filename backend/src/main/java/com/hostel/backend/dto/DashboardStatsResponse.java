@@ -12,6 +12,7 @@ public class DashboardStatsResponse {
     private long assigned;
     private long inProgress;
     private long resolved;
+    private long disputed;   // ← ADD THIS (it's the 6th arg you're already passing)
     private long closed;
     private long rejected;
 }

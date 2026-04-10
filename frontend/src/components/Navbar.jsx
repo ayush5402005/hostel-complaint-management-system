@@ -1,27 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useState } from 'react';
-import api from '../api/axios';
+import { useNotification } from '../context/NotificationContext';
+import { useState } from 'react';
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [mobileOpen, setMobileOpen]   = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      api.get('/notifications/unread-count')
-        .then(res => setUnreadCount(res.data.unreadCount))
-        .catch(() => {});
-      const interval = setInterval(() => {
-        api.get('/notifications/unread-count')
-          .then(res => setUnreadCount(res.data.unreadCount))
-          .catch(() => {});
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+  const { user, logout }        = useAuth();
+  const { unreadCount }         = useNotification(); // ← live from context, no polling
+  const navigate                = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -61,7 +47,6 @@ const Navbar = () => {
         className="hover:text-indigo-600 transition">
         📋 Notices
       </Link>
-      {/* ✅ NEW — User Management for ADMIN/WARDEN/CARETAKER */}
       {['ADMIN', 'WARDEN', 'CARETAKER'].includes(user?.role) && (
         <Link to="/admin/users"
           onClick={() => setMobileOpen(false)}
@@ -76,18 +61,17 @@ const Navbar = () => {
     <nav className="bg-white shadow-sm border-b border-gray-200 px-6 py-3">
       <div className="flex items-center justify-between">
 
-        {/* Left — Logo + Desktop Nav */}
+        {/* Left */}
         <div className="flex items-center gap-6">
           <Link to="/dashboard" className="text-xl font-bold text-indigo-600">
             🏠 HostelDesk
           </Link>
-          {/* Desktop links */}
           <div className="hidden md:flex gap-4 text-sm font-medium text-gray-600">
             {navLinks}
           </div>
         </div>
 
-        {/* Right — Role badge, bell, profile, logout, hamburger */}
+        {/* Right */}
         <div className="flex items-center gap-3">
           {user && (
             <span className={`text-xs font-semibold px-2 py-1 rounded-full ${roleColors[user.role] || 'bg-gray-100'}`}>
@@ -95,7 +79,7 @@ const Navbar = () => {
             </span>
           )}
 
-          {/* Notification bell */}
+          {/* Bell — badge updates instantly via SSE */}
           <Link to="/notifications" className="relative text-gray-600 hover:text-indigo-600 text-xl">
             🔔
             {unreadCount > 0 && (
@@ -124,7 +108,7 @@ const Navbar = () => {
             Logout
           </button>
 
-          {/* ✅ Hamburger — mobile only */}
+          {/* Hamburger */}
           <button
             onClick={() => setMobileOpen(o => !o)}
             className="md:hidden text-gray-600 hover:text-indigo-600 text-2xl leading-none"
@@ -134,11 +118,10 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* ✅ Mobile dropdown menu */}
+      {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden mt-3 pb-3 border-t border-gray-100 pt-3 flex flex-col gap-3 text-sm font-medium text-gray-600">
           {navLinks}
-          {/* Profile + Logout in mobile menu */}
           <Link to="/profile"
             onClick={() => setMobileOpen(false)}
             className="hover:text-indigo-600 transition">

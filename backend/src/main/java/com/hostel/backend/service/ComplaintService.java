@@ -2,13 +2,12 @@ package com.hostel.backend.service;
 
 import com.hostel.backend.dto.*;
 import com.hostel.backend.entity.Complaint;
+import com.hostel.backend.entity.ComplaintMedia;
 import com.hostel.backend.entity.User;
-import com.hostel.backend.enums.ComplaintCategory;
-import com.hostel.backend.enums.ComplaintPriority;
-import com.hostel.backend.enums.ComplaintStatus;
-import com.hostel.backend.enums.Role;
+import com.hostel.backend.enums.*;
 import com.hostel.backend.exception.ResourceNotFoundException;
 import com.hostel.backend.exception.UnauthorizedException;
+import com.hostel.backend.repository.ComplaintMediaRepository;
 import com.hostel.backend.repository.ComplaintRepository;
 import com.hostel.backend.repository.UserRepository;
 import com.hostel.backend.specification.ComplaintSpecification;
@@ -20,27 +19,32 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ComplaintService {
 
     private final ComplaintRepository      complaintRepository;
+    private final ComplaintMediaRepository complaintMediaRepository;
     private final UserRepository           userRepository;
     private final NotificationService      notificationService;
     private final ComplaintAuditLogService auditLogService;
 
     public ComplaintService(ComplaintRepository complaintRepository,
+                            ComplaintMediaRepository complaintMediaRepository,
                             UserRepository userRepository,
                             NotificationService notificationService,
                             ComplaintAuditLogService auditLogService) {
-        this.complaintRepository = complaintRepository;
-        this.userRepository      = userRepository;
-        this.notificationService = notificationService;
-        this.auditLogService     = auditLogService;
+        this.complaintRepository      = complaintRepository;
+        this.complaintMediaRepository = complaintMediaRepository;
+        this.userRepository           = userRepository;
+        this.notificationService      = notificationService;
+        this.auditLogService          = auditLogService;
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private User getUser(String email) {
         return userRepository.findByEmail(email)
@@ -71,6 +75,19 @@ public class ComplaintService {
     }
 
     private ComplaintResponse toResponse(Complaint c) {
+        // Fetch media from DB — avoids LazyInitializationException safely
+        List<ComplaintMedia> allMedia = complaintMediaRepository.findByComplaintId(c.getId());
+
+        List<String> mediaUrls = allMedia.stream()
+                .filter(m -> m.getUploadedBy() == MediaUploadedBy.STUDENT)
+                .map(ComplaintMedia::getMediaUrl)
+                .collect(Collectors.toList());
+
+        List<String> resolvedMediaUrls = allMedia.stream()
+                .filter(m -> m.getUploadedBy() == MediaUploadedBy.WORKER)
+                .map(ComplaintMedia::getMediaUrl)
+                .collect(Collectors.toList());
+
         return ComplaintResponse.builder()
                 .id(c.getId())
                 .title(c.getTitle())
@@ -78,12 +95,21 @@ public class ComplaintService {
                 .category(c.getCategory())
                 .priority(c.getPriority())
                 .status(c.getStatus())
-                .issuePhotoUrl(c.getIssuePhotoUrl())
-                .resolvedPhotoUrl(c.getResolvedPhotoUrl())
+                .mediaUrls(mediaUrls)
+                .resolvedMediaUrls(resolvedMediaUrls)
                 .rejectionReason(c.getRejectionReason())
                 .rating(c.getRating())
+                .reviewText(c.getReviewText())
+                .disputeReason(c.getDisputeReason())
+                .disputedAt(c.getDisputedAt())
                 .overdue(c.isOverdue())
                 .escalated(c.isEscalated())
+                .slot1Day(c.getSlot1Day())
+                .slot1Time(c.getSlot1Time())
+                .slot2Day(c.getSlot2Day())
+                .slot2Time(c.getSlot2Time())
+                .slot3Day(c.getSlot3Day())
+                .slot3Time(c.getSlot3Time())
                 .student(toUserSummary(c.getStudent()))
                 .assignedWorker(toUserSummary(c.getAssignedWorker()))
                 .createdAt(c.getCreatedAt())
@@ -91,7 +117,7 @@ public class ComplaintService {
                 .build();
     }
 
-    // ─── Create ──────────────────────────────────────────────────────────────
+    // ─── Create ───────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse createComplaint(String email, ComplaintRequest request) {
@@ -99,22 +125,44 @@ public class ComplaintService {
         if (user.getRole() != Role.STUDENT) {
             throw new UnauthorizedException("Only students can create complaints");
         }
+        if (request.getMediaUrls() != null && request.getMediaUrls().size() > 3) {
+            throw new RuntimeException("Maximum 3 photos allowed");
+        }
+
         Complaint complaint = Complaint.builder()
                 .title(request.getTitle())
                 .category(request.getCategory())
-                .priority(request.getPriority())
+                .priority(request.getPriority() != null ? request.getPriority() : ComplaintPriority.LOW)
                 .description(request.getDescription())
-                .issuePhotoUrl(request.getImageUrl())
                 .status(ComplaintStatus.CREATED)
                 .hostel(user.getHostel())
                 .block(user.getBlock())
                 .student(user)
+                .slot1Day(request.getSlot1Day())
+                .slot1Time(request.getSlot1Time())
+                .slot2Day(request.getSlot2Day())
+                .slot2Time(request.getSlot2Time())
+                .slot3Day(request.getSlot3Day())
+                .slot3Time(request.getSlot3Time())
                 .build();
+
         Complaint saved = complaintRepository.save(complaint);
 
+        // Save student photos
+        if (request.getMediaUrls() != null) {
+            List<ComplaintMedia> mediaList = request.getMediaUrls().stream()
+                    .filter(url -> url != null && !url.isBlank())
+                    .map(url -> ComplaintMedia.builder()
+                            .complaint(saved)
+                            .mediaUrl(url)
+                            .uploadedBy(MediaUploadedBy.STUDENT)
+                            .build())
+                    .collect(Collectors.toList());
+            complaintMediaRepository.saveAll(mediaList);
+        }
+
         auditLogService.log(saved.getId(), user,
-                null, ComplaintStatus.CREATED.name(),
-                "Complaint filed by student");
+                null, ComplaintStatus.CREATED.name(), "Complaint filed by student");
 
         List<User> staff = userRepository.findByRole(Role.WARDEN);
         staff.addAll(userRepository.findByRole(Role.CARETAKER));
@@ -126,7 +174,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Assign ──────────────────────────────────────────────────────────────
+    // ─── Assign ───────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse assignWorker(Long complaintId, Long workerId, String email) {
@@ -150,8 +198,7 @@ public class ComplaintService {
                 "Assigned to worker: " + worker.getName());
 
         notificationService.sendNotification(worker,
-                "You have been assigned complaint: " + saved.getTitle(),
-                "COMPLAINT_ASSIGNED");
+                "You have been assigned complaint: " + saved.getTitle(), "COMPLAINT_ASSIGNED");
         notificationService.sendNotification(saved.getStudent(),
                 "Your complaint '" + saved.getTitle() + "' has been assigned to " + worker.getName(),
                 "COMPLAINT_ASSIGNED");
@@ -159,7 +206,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Reassign ────────────────────────────────────────────────────────────
+    // ─── Reassign ─────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse reassignWorker(Long complaintId, Long newWorkerId, String email) {
@@ -179,17 +226,13 @@ public class ComplaintService {
         complaint.setStatus(ComplaintStatus.ASSIGNED);
         Complaint saved = complaintRepository.save(complaint);
 
-        auditLogService.log(saved.getId(), assignedBy,
-                prevStatus, ComplaintStatus.ASSIGNED.name(),
-                "Reassigned from " +
-                (oldWorker != null ? oldWorker.getName() : "nobody") +
-                " to " + newWorker.getName());
+        auditLogService.log(saved.getId(), assignedBy, prevStatus, ComplaintStatus.ASSIGNED.name(),
+                "Reassigned from " + (oldWorker != null ? oldWorker.getName() : "nobody")
+                        + " to " + newWorker.getName());
 
-        if (oldWorker != null) {
-            notificationService.sendNotification(oldWorker,
-                    "Complaint '" + saved.getTitle() + "' has been reassigned from you",
-                    "COMPLAINT_ASSIGNED");
-        }
+        if (oldWorker != null) notificationService.sendNotification(oldWorker,
+                "Complaint '" + saved.getTitle() + "' has been reassigned from you",
+                "COMPLAINT_ASSIGNED");
         notificationService.sendNotification(newWorker,
                 "Complaint '" + saved.getTitle() + "' has been reassigned to you",
                 "COMPLAINT_ASSIGNED");
@@ -200,7 +243,7 @@ public class ComplaintService {
         return toResponse(saved);
     }
 
-    // ─── Reject ──────────────────────────────────────────────────────────────
+    // ─── Reject ───────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse rejectComplaint(Long complaintId, String reason, String email) {
@@ -220,9 +263,8 @@ public class ComplaintService {
         complaint.setRejectionReason(reason.trim());
         Complaint saved = complaintRepository.save(complaint);
 
-        auditLogService.log(saved.getId(), rejectedBy,
-                prevStatus, ComplaintStatus.REJECTED.name(),
-                "Rejected. Reason: " + reason.trim());
+        auditLogService.log(saved.getId(), rejectedBy, prevStatus,
+                ComplaintStatus.REJECTED.name(), "Rejected. Reason: " + reason.trim());
 
         notificationService.sendNotification(saved.getStudent(),
                 "Your complaint '" + saved.getTitle() + "' was rejected. Reason: " + reason,
@@ -246,33 +288,53 @@ public class ComplaintService {
                 !complaint.getAssignedWorker().getId().equals(worker.getId())) {
             throw new UnauthorizedException("You are not assigned to this complaint");
         }
+
         String prevStatus = complaint.getStatus().name();
         complaint.setStatus(request.getStatus());
-        if (request.getResolvedPhotoUrl() != null) {
-            complaint.setResolvedPhotoUrl(request.getResolvedPhotoUrl());
+
+        // Save worker proof photos when marking RESOLVED
+        if (request.getStatus() == ComplaintStatus.RESOLVED
+                && request.getResolvedMediaUrls() != null
+                && !request.getResolvedMediaUrls().isEmpty()) {
+
+            if (request.getResolvedMediaUrls().size() > 3) {
+                throw new RuntimeException("Maximum 3 proof photos allowed");
+            }
+            // Remove any previously uploaded worker media for this complaint
+            List<ComplaintMedia> existing = complaintMediaRepository
+                    .findByComplaintIdAndUploadedBy(complaintId, MediaUploadedBy.WORKER);
+            complaintMediaRepository.deleteAll(existing);
+
+            List<ComplaintMedia> mediaList = request.getResolvedMediaUrls().stream()
+                    .filter(url -> url != null && !url.isBlank())
+                    .map(url -> ComplaintMedia.builder()
+                            .complaint(complaint)
+                            .mediaUrl(url)
+                            .uploadedBy(MediaUploadedBy.WORKER)
+                            .build())
+                    .collect(Collectors.toList());
+            complaintMediaRepository.saveAll(mediaList);
         }
+
         Complaint saved = complaintRepository.save(complaint);
 
-        auditLogService.log(saved.getId(), worker,
-                prevStatus, request.getStatus().name(),
+        auditLogService.log(saved.getId(), worker, prevStatus, request.getStatus().name(),
                 request.getStatus() == ComplaintStatus.IN_PROGRESS
-                        ? "Worker started working"
-                        : "Worker marked as resolved");
+                        ? "Worker started working" : "Worker marked as resolved");
 
         if (request.getStatus() == ComplaintStatus.IN_PROGRESS) {
             notificationService.sendNotification(saved.getStudent(),
-                    "Work has started on your complaint: " + saved.getTitle(),
-                    "STATUS_UPDATED");
+                    "Work has started on your complaint: " + saved.getTitle(), "STATUS_UPDATED");
         } else if (request.getStatus() == ComplaintStatus.RESOLVED) {
             notificationService.sendNotification(saved.getStudent(),
-                    "Your complaint '" + saved.getTitle() + "' is resolved. Please close it.",
+                    "Your complaint '" + saved.getTitle() + "' is resolved. Please close it or flag if still unresolved.",
                     "STATUS_UPDATED");
         }
 
         return toResponse(saved);
     }
 
-    // ─── Close ───────────────────────────────────────────────────────────────
+    // ─── Close ────────────────────────────────────────────────────────────────
 
     @Transactional
     public ComplaintResponse closeComplaint(Long complaintId,
@@ -289,23 +351,80 @@ public class ComplaintService {
         if (complaint.getStatus() != ComplaintStatus.RESOLVED) {
             throw new RuntimeException("Complaint must be RESOLVED before closing");
         }
-        if (request != null && request.getRating() != null) {
-            int r = request.getRating();
-            if (r < 1 || r > 5) throw new RuntimeException("Rating must be between 1 and 5");
-            complaint.setRating(r);
+        if (request != null) {
+            if (request.getRating() != null) {
+                int r = request.getRating();
+                if (r < 1 || r > 5) throw new RuntimeException("Rating must be between 1 and 5");
+                complaint.setRating(r);
+            }
+            // ✅ Save written review
+            if (request.getReviewText() != null && !request.getReviewText().isBlank()) {
+                complaint.setReviewText(request.getReviewText().trim());
+            }
         }
         complaint.setStatus(ComplaintStatus.CLOSED);
         Complaint saved = complaintRepository.save(complaint);
 
         auditLogService.log(saved.getId(), student,
                 ComplaintStatus.RESOLVED.name(), ComplaintStatus.CLOSED.name(),
-                "Closed by student" + (saved.getRating() != null
-                        ? " | Rating: " + saved.getRating() + "/5" : ""));
+                "Closed by student"
+                        + (saved.getRating() != null ? " | Rating: " + saved.getRating() + "/5" : "")
+                        + (saved.getReviewText() != null ? " | Review given" : ""));
+
+        if (saved.getAssignedWorker() != null) {
+            String ratingText = saved.getRating() != null
+                    ? " (Rated " + saved.getRating() + "/5)" : "";
+            notificationService.sendNotification(saved.getAssignedWorker(),
+                    "Complaint '" + saved.getTitle() + "' was closed by the student" + ratingText,
+                    "COMPLAINT_CLOSED");
+        }
 
         return toResponse(saved);
     }
 
-    // ─── Queries ─────────────────────────────────────────────────────────────
+    // ─── ✅ Dispute (NEW) ─────────────────────────────────────────────────────
+
+    @Transactional
+    public ComplaintResponse disputeComplaint(Long complaintId,
+                                              DisputeComplaintRequest request,
+                                              String email) {
+        User student = getUser(email);
+        if (student.getRole() != Role.STUDENT) {
+            throw new UnauthorizedException("Only student can dispute a complaint");
+        }
+        Complaint complaint = getComplaint(complaintId);
+        if (!complaint.getStudent().getId().equals(student.getId())) {
+            throw new UnauthorizedException("You cannot dispute this complaint");
+        }
+        if (complaint.getStatus() != ComplaintStatus.RESOLVED) {
+            throw new RuntimeException("You can only dispute a RESOLVED complaint");
+        }
+        if (request.getDisputeReason() == null || request.getDisputeReason().isBlank()) {
+            throw new RuntimeException("Please provide a reason for disputing");
+        }
+
+        complaint.setStatus(ComplaintStatus.DISPUTED);
+        complaint.setDisputeReason(request.getDisputeReason().trim());
+        complaint.setDisputedAt(LocalDateTime.now());
+        Complaint saved = complaintRepository.save(complaint);
+
+        auditLogService.log(saved.getId(), student,
+                ComplaintStatus.RESOLVED.name(), ComplaintStatus.DISPUTED.name(),
+                "Student disputed: " + request.getDisputeReason().trim());
+
+        // Notify caretaker, warden, and the assigned worker
+        List<User> toNotify = userRepository.findByRole(Role.CARETAKER);
+        toNotify.addAll(userRepository.findByRole(Role.WARDEN));
+        if (saved.getAssignedWorker() != null) toNotify.add(saved.getAssignedWorker());
+        toNotify.forEach(u -> notificationService.sendNotification(u,
+                "⚠️ Student disputed complaint '" + saved.getTitle()
+                        + "'. Reason: " + request.getDisputeReason(),
+                "COMPLAINT_DISPUTED"));
+
+        return toResponse(saved);
+    }
+
+    // ─── Queries ──────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<ComplaintResponse> getComplaintsByRole(String email, int page, int size,
@@ -342,6 +461,7 @@ public class ComplaintService {
                 + complaintRepository.countByStudentAndStatus(user, ComplaintStatus.ASSIGNED)
                 + complaintRepository.countByStudentAndStatus(user, ComplaintStatus.IN_PROGRESS),
                 complaintRepository.countByStudentAndStatus(user, ComplaintStatus.RESOLVED),
+                complaintRepository.countByStudentAndStatus(user, ComplaintStatus.DISPUTED),
                 complaintRepository.countByStudentAndStatus(user, ComplaintStatus.CLOSED),
                 complaintRepository.countByStudentAndStatus(user, ComplaintStatus.REJECTED)
         );
@@ -370,6 +490,7 @@ public class ComplaintService {
                 complaintRepository.countByStatus(ComplaintStatus.ASSIGNED),
                 complaintRepository.countByStatus(ComplaintStatus.IN_PROGRESS),
                 complaintRepository.countByStatus(ComplaintStatus.RESOLVED),
+                complaintRepository.countByStatus(ComplaintStatus.DISPUTED),
                 complaintRepository.countByStatus(ComplaintStatus.CLOSED),
                 complaintRepository.countByStatus(ComplaintStatus.REJECTED)
         );

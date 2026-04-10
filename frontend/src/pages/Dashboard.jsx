@@ -4,8 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
 
-const StatCard = ({ label, value, color }) => (
-  <div className={`rounded-xl p-5 text-white ${color}`}>
+// ── StatCard — clickable when onClick provided ────────────────────────────────
+const StatCard = ({ label, value, color, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`rounded-xl p-5 text-white ${color}
+      ${onClick ? 'cursor-pointer hover:opacity-90 hover:scale-[1.02] transition-all' : ''}`}
+  >
     <p className="text-sm opacity-90">{label}</p>
     <p className="text-3xl font-bold mt-1">{value ?? 0}</p>
   </div>
@@ -146,8 +151,23 @@ const ActionCard = ({ to, icon, title, desc, color = 'hover:border-indigo-400' }
   </Link>
 );
 
+// ── Staff stat cards with navigation ─────────────────────────────────────────
+const StaffStatCards = ({ stats, navigate }) => (
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <StatCard label="Total"       value={stats.total}      color="bg-indigo-600" onClick={() => navigate('/complaints')} />
+    <StatCard label="Pending"     value={stats.created}    color="bg-gray-500"   onClick={() => navigate('/complaints?status=CREATED')} />
+    <StatCard label="Assigned"    value={stats.assigned}   color="bg-blue-500"   onClick={() => navigate('/complaints?status=ASSIGNED')} />
+    <StatCard label="In Progress" value={stats.inProgress} color="bg-yellow-500" onClick={() => navigate('/complaints?status=IN_PROGRESS')} />
+    <StatCard label="Resolved"    value={stats.resolved}   color="bg-green-500"  onClick={() => navigate('/complaints?status=RESOLVED')} />
+    <StatCard label="Closed"      value={stats.closed}     color="bg-purple-500" onClick={() => navigate('/complaints?status=CLOSED')} />
+    <StatCard label="Rejected"    value={stats.rejected}   color="bg-red-500"    onClick={() => navigate('/complaints?status=REJECTED')} />
+  </div>
+);
+
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user }    = useAuth();
+  const navigate    = useNavigate(); // ← added here
+
   const [stats, setStats]                 = useState(null);
   const [studentStats, setStudentStats]   = useState(null);
   const [workerStats, setWorkerStats]     = useState(null);
@@ -212,22 +232,15 @@ const Dashboard = () => {
           </div>
         ) : (
           <>
-            {/* ─── ADMIN VIEW ─── */}
+            {/* ─── ADMIN ─────────────────────────────────────────────────────── */}
             {user.role === 'ADMIN' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   {stats && (
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-700 mb-3">📊 Complaint Overview</h2>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Total"       value={stats.total}      color="bg-indigo-600" />
-                        <StatCard label="Created"     value={stats.created}    color="bg-gray-500" />
-                        <StatCard label="Assigned"    value={stats.assigned}   color="bg-blue-500" />
-                        <StatCard label="In Progress" value={stats.inProgress} color="bg-yellow-500" />
-                        <StatCard label="Resolved"    value={stats.resolved}   color="bg-green-500" />
-                        <StatCard label="Closed"      value={stats.closed}     color="bg-purple-500" />
-                        <StatCard label="Rejected"    value={stats.rejected}   color="bg-red-500" />
-                      </div>
+                      <h2 className="text-lg font-semibold text-gray-700 mb-1">📊 Complaint Overview</h2>
+                      <p className="text-xs text-gray-400 mb-3">Click any card to filter complaints</p>
+                      <StaffStatCards stats={stats} navigate={navigate} />
                     </div>
                   )}
                   <div>
@@ -255,31 +268,24 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* ─── WARDEN VIEW ─── */}
+            {/* ─── WARDEN ────────────────────────────────────────────────────── */}
             {user.role === 'WARDEN' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   {stats && (
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-700 mb-3">📊 Hostel Overview</h2>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Total"       value={stats.total}      color="bg-indigo-600" />
-                        <StatCard label="Pending"     value={stats.created}    color="bg-gray-500" />
-                        <StatCard label="Assigned"    value={stats.assigned}   color="bg-blue-500" />
-                        <StatCard label="In Progress" value={stats.inProgress} color="bg-yellow-500" />
-                        <StatCard label="Resolved"    value={stats.resolved}   color="bg-green-500" />
-                        <StatCard label="Closed"      value={stats.closed}     color="bg-purple-500" />
-                        <StatCard label="Rejected"    value={stats.rejected}   color="bg-red-500" />
-                      </div>
+                      <h2 className="text-lg font-semibold text-gray-700 mb-1">📊 Hostel Overview</h2>
+                      <p className="text-xs text-gray-400 mb-3">Click any card to filter complaints</p>
+                      <StaffStatCards stats={stats} navigate={navigate} />
                     </div>
                   )}
                   <div>
                     <h2 className="text-lg font-semibold text-gray-700 mb-3">⚡ Quick Actions</h2>
                     <div className="grid grid-cols-2 gap-3">
-                      <ActionCard to="/complaints"        icon="📋" title="All Complaints" desc="Assign, reject, manage" />
-                      <ActionCard to="/notices"           icon="📌" title="Notice Board"   desc="Post notices to students" />
-                      <ActionCard to="/admin/users"       icon="👥" title="All Users"      desc="Manage all users" />
-                      <ActionCard to="/admin/users/new"   icon="➕" title="Add User"       desc="Register a new user" />
+                      <ActionCard to="/complaints"      icon="📋" title="All Complaints" desc="Assign, reject, manage" />
+                      <ActionCard to="/notices"         icon="📌" title="Notice Board"   desc="Post notices to students" />
+                      <ActionCard to="/admin/users"     icon="👥" title="All Users"      desc="Manage all users" />
+                      <ActionCard to="/admin/users/new" icon="➕" title="Add User"       desc="Register a new user" />
                     </div>
                   </div>
                   <div>
@@ -307,7 +313,8 @@ const Dashboard = () => {
                       <p className="text-sm font-bold text-yellow-700 mb-1">⏳ Unassigned Complaints</p>
                       <p className="text-3xl font-bold text-yellow-600">{stats.created}</p>
                       <p className="text-xs text-yellow-600 mt-1">Waiting for worker assignment</p>
-                      <Link to="/complaints"
+                      {/* ← ?status=CREATED added */}
+                      <Link to="/complaints?status=CREATED"
                         className="mt-2 inline-block text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg transition font-medium">
                         Assign Now →
                       </Link>
@@ -317,35 +324,25 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* ─── CARETAKER VIEW ─── */}
+            {/* ─── CARETAKER ─────────────────────────────────────────────────── */}
             {user.role === 'CARETAKER' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   {stats && (
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-700 mb-3">📊 Complaint Overview</h2>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Total"       value={stats.total}      color="bg-indigo-600" />
-                        <StatCard label="Pending"     value={stats.created}    color="bg-gray-500" />
-                        <StatCard label="Assigned"    value={stats.assigned}   color="bg-blue-500" />
-                        <StatCard label="In Progress" value={stats.inProgress} color="bg-yellow-500" />
-                        <StatCard label="Resolved"    value={stats.resolved}   color="bg-green-500" />
-                        <StatCard label="Closed"      value={stats.closed}     color="bg-purple-500" />
-                        <StatCard label="Rejected"    value={stats.rejected}   color="bg-red-500" />
-                      </div>
+                      <h2 className="text-lg font-semibold text-gray-700 mb-1">📊 Complaint Overview</h2>
+                      <p className="text-xs text-gray-400 mb-3">Click any card to filter complaints</p>
+                      <StaffStatCards stats={stats} navigate={navigate} />
                     </div>
                   )}
-
-                  {/* ✅ CARETAKER — only 3 actions, no user management */}
                   <div>
                     <h2 className="text-lg font-semibold text-gray-700 mb-3">⚡ Quick Actions</h2>
                     <div className="grid grid-cols-2 gap-3">
-                      <ActionCard to="/complaints"                    icon="📋" title="All Complaints" desc="Assign & manage complaints" />
-                      <ActionCard to="/admin/users?role=WORKER"       icon="👷" title="View Workers"   desc="Worker list & ratings" />
-                      <ActionCard to="/notices"                       icon="📌" title="Notice Board"   desc="View hostel notices" />
+                      <ActionCard to="/complaints"              icon="📋" title="All Complaints" desc="Assign & manage complaints" />
+                      <ActionCard to="/admin/users?role=WORKER" icon="👷" title="View Workers"   desc="Worker list & ratings" />
+                      <ActionCard to="/notices"                 icon="📌" title="Notice Board"   desc="View hostel notices" />
                     </div>
                   </div>
-
                   <div>
                     <h2 className="text-lg font-semibold text-gray-700 mb-3">
                       🚨 Needs Attention
@@ -371,7 +368,8 @@ const Dashboard = () => {
                       <p className="text-sm font-bold text-yellow-700 mb-1">⏳ Needs Assignment</p>
                       <p className="text-3xl font-bold text-yellow-600">{stats.created}</p>
                       <p className="text-xs text-yellow-600 mt-1">Complaints waiting for a worker</p>
-                      <Link to="/complaints"
+                      {/* ← ?status=CREATED added */}
+                      <Link to="/complaints?status=CREATED"
                         className="mt-2 inline-block text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg transition font-medium">
                         Assign Now →
                       </Link>
@@ -381,7 +379,7 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* ─── WORKER VIEW ─── */}
+            {/* ─── WORKER ────────────────────────────────────────────────────── */}
             {user.role === 'WORKER' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -389,10 +387,10 @@ const Dashboard = () => {
                     <div>
                       <h2 className="text-lg font-semibold text-gray-700 mb-3">📊 My Work Overview</h2>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Assigned"    value={workerStats.assigned}   color="bg-blue-500" />
-                        <StatCard label="In Progress" value={workerStats.inProgress} color="bg-yellow-500" />
-                        <StatCard label="Resolved"    value={workerStats.resolved}   color="bg-green-500" />
-                        <StatCard label="Closed"      value={workerStats.closed}     color="bg-purple-500" />
+                        <StatCard label="Assigned"    value={workerStats.assigned}   color="bg-blue-500"   onClick={() => navigate('/complaints?status=ASSIGNED')} />
+                        <StatCard label="In Progress" value={workerStats.inProgress} color="bg-yellow-500" onClick={() => navigate('/complaints?status=IN_PROGRESS')} />
+                        <StatCard label="Resolved"    value={workerStats.resolved}   color="bg-green-500"  onClick={() => navigate('/complaints?status=RESOLVED')} />
+                        <StatCard label="Closed"      value={workerStats.closed}     color="bg-purple-500" onClick={() => navigate('/complaints?status=CLOSED')} />
                       </div>
                       <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
                         <span className="text-3xl">⭐</span>
@@ -441,17 +439,17 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* ─── STUDENT VIEW ─── */}
+            {/* ─── STUDENT ───────────────────────────────────────────────────── */}
             {user.role === 'STUDENT' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
                   {studentStats && (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-2">
-                      <StatCard label="Total"    value={studentStats.total}    color="bg-indigo-600" />
-                      <StatCard label="Pending"  value={studentStats.pending}  color="bg-yellow-500" />
-                      <StatCard label="Resolved" value={studentStats.resolved} color="bg-green-500" />
-                      <StatCard label="Closed"   value={studentStats.closed}   color="bg-purple-500" />
-                      <StatCard label="Rejected" value={studentStats.rejected} color="bg-red-500" />
+                      <StatCard label="Total"    value={studentStats.total}    color="bg-indigo-600" onClick={() => navigate('/complaints')} />
+                      <StatCard label="Pending"  value={studentStats.pending}  color="bg-yellow-500" onClick={() => navigate('/complaints?status=CREATED')} />
+                      <StatCard label="Resolved" value={studentStats.resolved} color="bg-green-500"  onClick={() => navigate('/complaints?status=RESOLVED')} />
+                      <StatCard label="Closed"   value={studentStats.closed}   color="bg-purple-500" onClick={() => navigate('/complaints?status=CLOSED')} />
+                      <StatCard label="Rejected" value={studentStats.rejected} color="bg-red-500"    onClick={() => navigate('/complaints?status=REJECTED')} />
                     </div>
                   )}
                   <div className="flex items-center justify-between">

@@ -127,8 +127,7 @@ public class AdminService {
         long resolved   = complaintRepository.countByStatus(ComplaintStatus.RESOLVED);
         long closed     = complaintRepository.countByStatus(ComplaintStatus.CLOSED);
         long rejected   = complaintRepository.countByStatus(ComplaintStatus.REJECTED);
-        return new DashboardStatsResponse(total, created, assigned, inProgress,
-                                          resolved, closed, rejected);
+        return new DashboardStatsResponse(total, created, assigned, inProgress, resolved, closed, rejected, 0L);
     }
 
     private AdminUserResponse mapToAdminUserResponse(User user) {

@@ -1,10 +1,6 @@
 package com.hostel.backend.controller;
 
-import com.hostel.backend.dto.RegisterRequest;
-import com.hostel.backend.dto.LoginRequest;
-import com.hostel.backend.entity.Block;
-import com.hostel.backend.entity.Hostel;
-import com.hostel.backend.entity.User;
+import com.hostel.backend.dto.*;
 import com.hostel.backend.repository.BlockRepository;
 import com.hostel.backend.repository.HostelRepository;
 import com.hostel.backend.service.AuthService;
@@ -13,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -31,8 +28,9 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<User> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request));
+    public ResponseEntity<Map<String, String>> register(@RequestBody RegisterRequest request) {
+        authService.register(request);
+        return ResponseEntity.ok(Map.of("message", "OTP sent to your email. Please verify."));
     }
 
     @PostMapping("/login")
@@ -41,15 +39,23 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // ── Public dropdown endpoints for registration form ───────────
+    // ── Public dropdown endpoints ─────────────────────────────────
 
     @GetMapping("/hostels")
-    public ResponseEntity<List<Hostel>> getHostels() {
-        return ResponseEntity.ok(hostelRepository.findAll());
+    public ResponseEntity<List<HostelResponse>> getHostels() {
+        List<HostelResponse> hostels = hostelRepository.findAll()
+                .stream()
+                .map(h -> new HostelResponse(h.getId(), h.getName(), h.getCode()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(hostels);
     }
 
     @GetMapping("/hostels/{hostelId}/blocks")
-    public ResponseEntity<List<Block>> getBlocksByHostel(@PathVariable Long hostelId) {
-        return ResponseEntity.ok(blockRepository.findByHostelId(hostelId));
+    public ResponseEntity<List<BlockResponse>> getBlocksByHostel(@PathVariable Long hostelId) {
+        List<BlockResponse> blocks = blockRepository.findByHostelId(hostelId)
+                .stream()
+                .map(b -> new BlockResponse(b.getId(), b.getName()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(blocks);
     }
 }

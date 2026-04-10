@@ -13,4 +13,5 @@ public class StudentDashboardStatsResponse {
     private long resolved;
     private long closed;
     private long rejected;
+    private long disputed;   // ← ADD THIS
 }

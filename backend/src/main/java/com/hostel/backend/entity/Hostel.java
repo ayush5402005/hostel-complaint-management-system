@@ -1,5 +1,6 @@
 package com.hostel.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,11 +16,12 @@ public class Hostel {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name;          // e.g. "Hostel 1", "Hostel 10 A-B"
+    private String name;
 
     @Column(nullable = false, unique = true)
-    private String code;          // e.g. "H1", "H10AB"
+    private String code;
 
     @OneToMany(mappedBy = "hostel", cascade = CascadeType.ALL)
+    @JsonIgnore   // ← ADD THIS
     private List<Block> blocks;
 }

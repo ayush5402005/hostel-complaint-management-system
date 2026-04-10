@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 
+
 const STATUSES = ['', 'CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'];
+
 
 const statusColors = {
   CREATED:     'bg-gray-100 text-gray-700',
@@ -16,14 +18,17 @@ const statusColors = {
   REJECTED:    'bg-red-100 text-red-700',
 };
 
+
 const priorityColors = {
   LOW:    'text-green-600',
   MEDIUM: 'text-yellow-600',
   HIGH:   'text-red-600',
 };
 
+
 const priorityOrder = { HIGH: 1, MEDIUM: 2, LOW: 3 };
 const statusOrder   = { CREATED: 1, ASSIGNED: 2, IN_PROGRESS: 3, RESOLVED: 4, REJECTED: 5, CLOSED: 6 };
+
 
 const smartSort = (list) => [...list].sort((a, b) => {
   if ((a.overdue || a.escalated) && !(b.overdue || b.escalated)) return -1;
@@ -39,6 +44,7 @@ const smartSort = (list) => [...list].sort((a, b) => {
   return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
 });
 
+
 const StarPicker = ({ value, onChange }) => (
   <div className="flex gap-1">
     {[1, 2, 3, 4, 5].map(star => (
@@ -50,15 +56,22 @@ const StarPicker = ({ value, onChange }) => (
   </div>
 );
 
+
 const ComplaintList = () => {
   const { user }      = useAuth();
   const { showToast } = useToast();
+  const location      = useLocation();
 
   const [complaints, setComplaints]           = useState([]);
   const [workers, setWorkers]                 = useState([]);
   const [page, setPage]                       = useState(0);
   const [totalPages, setTotalPages]           = useState(0);
-  const [statusFilter, setStatusFilter]       = useState('');
+
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('status') || '';
+  });
+
   const [loading, setLoading]                 = useState(true);
   const [actionLoading, setActionLoading]     = useState(null);
   const [selectedWorker, setSelectedWorker]   = useState({});
@@ -74,8 +87,9 @@ const ComplaintList = () => {
   const [closeModal, setCloseModal]           = useState(null);
   const [rating, setRating]                   = useState(0);
 
-  const navigate  = useNavigate();
-  const isStaff   = ['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role);
+  const navigate = useNavigate();
+  const isStaff  = ['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role);
+
 
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
@@ -92,6 +106,7 @@ const ComplaintList = () => {
     }
   }, [page, statusFilter]);
 
+
   useEffect(() => {
     if (isStaff) {
       api.get('/admin/workers')
@@ -100,7 +115,9 @@ const ComplaintList = () => {
     }
   }, [user.role]);
 
+
   useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
+
 
   const handleAssign = async (complaintId) => {
     const workerId = selectedWorker[complaintId];
@@ -117,6 +134,7 @@ const ComplaintList = () => {
     }
   };
 
+
   const handleReassign = async (complaintId) => {
     const workerId = selectedWorker[complaintId];
     if (!workerId) { showToast('Please select a worker first', 'warning'); return; }
@@ -132,6 +150,7 @@ const ComplaintList = () => {
       setActionLoading(null);
     }
   };
+
 
   const handleReject = async (complaintId) => {
     const reason = rejectReason[complaintId];
@@ -150,6 +169,7 @@ const ComplaintList = () => {
     }
   };
 
+
   const handleStartWork = async (complaintId) => {
     setActionLoading(complaintId);
     try {
@@ -163,23 +183,26 @@ const ComplaintList = () => {
     }
   };
 
+
   const handlePhotoUpload = async (complaintId, file) => {
     if (!file) return;
     setUploadingPhoto(complaintId);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+
+      // ✅ No manual Content-Type — browser sets it with correct boundary
+      const res = await api.post('/files/upload', formData);
+
       setResolvePhoto(prev => ({ ...prev, [complaintId]: res.data.url }));
       showToast('Photo uploaded successfully!', 'success');
     } catch (err) {
-      showToast('Failed to upload photo', 'error');
+      showToast(err.response?.data?.message || 'Failed to upload photo', 'error');
     } finally {
       setUploadingPhoto(null);
     }
   };
+
 
   const handleMarkResolved = async (complaintId) => {
     setActionLoading(complaintId);
@@ -199,6 +222,7 @@ const ComplaintList = () => {
     }
   };
 
+
   const handleCloseWithRating = async () => {
     if (!closeModal) return;
     setActionLoading(closeModal.id);
@@ -215,10 +239,12 @@ const ComplaintList = () => {
     }
   };
 
+
   const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
+
 
   const filtered = complaints.filter(c =>
     c.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -226,9 +252,11 @@ const ComplaintList = () => {
     c.description?.toLowerCase().includes(search.toLowerCase())
   );
 
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
+
 
       {/* Close + Rate Modal */}
       {closeModal && (
@@ -262,11 +290,19 @@ const ComplaintList = () => {
         </div>
       )}
 
+
       <div className="max-w-6xl mx-auto px-4 py-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Complaints</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Complaints
+            {statusFilter && (
+              <span className={`ml-3 text-sm font-semibold px-3 py-1 rounded-full ${statusColors[statusFilter]}`}>
+                {statusFilter}
+              </span>
+            )}
+          </h1>
           <div className="flex gap-3 items-center">
             <select value={statusFilter}
               onChange={e => { setStatusFilter(e.target.value); setPage(0); }}
@@ -298,6 +334,7 @@ const ComplaintList = () => {
             </span>
           )}
         </div>
+
 
         {loading ? (
           <div className="flex justify-center py-20">
@@ -567,7 +604,7 @@ const ComplaintList = () => {
           </div>
         )}
 
-        {/* ✅ Improved Pagination */}
+        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center items-center gap-2 mt-6 flex-wrap">
             <button disabled={page === 0} onClick={() => setPage(p => p - 1)}

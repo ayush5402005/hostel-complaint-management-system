@@ -77,6 +77,16 @@ public class ComplaintController {
                 complaintService.closeComplaint(id, request, authentication.getName()));
     }
 
+    // ✅ NEW — Student flags resolved complaint as still unresolved
+    @PutMapping("/{id}/dispute")
+    public ResponseEntity<ComplaintResponse> disputeComplaint(
+            @PathVariable Long id,
+            @RequestBody DisputeComplaintRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                complaintService.disputeComplaint(id, request, authentication.getName()));
+    }
+
     @GetMapping
     public ResponseEntity<Page<ComplaintResponse>> getComplaints(
             Authentication authentication,
@@ -96,8 +106,7 @@ public class ComplaintController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStatsResponse> getDashboard(Authentication authentication) {
-        return ResponseEntity.ok(
-                complaintService.getDashboardStats(authentication.getName()));
+        return ResponseEntity.ok(complaintService.getDashboardStats(authentication.getName()));
     }
 
     @GetMapping("/dashboard/student")

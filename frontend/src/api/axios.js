@@ -13,7 +13,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
+    // ✅ Don't redirect on public auth endpoints — no token exists yet
+    const url = error.config?.url || '';
+    const isPublicRoute = url.startsWith('/auth/');
+
+    if (error.response?.status === 401 && !isPublicRoute) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

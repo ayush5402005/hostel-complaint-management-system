@@ -1,17 +1,28 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../api/axios';
+import { useNotification } from '../context/NotificationContext';
 
 const typeIcons = {
+  COMPLAINT_CREATED:  '📝',
   COMPLAINT_ASSIGNED: '👷',
-  STATUS_UPDATED: '🔄',
+  COMPLAINT_CLOSED:   '✅',
+  COMPLAINT_ESCALATED:'⚠️',
+  STATUS_UPDATED:     '🔄',
 };
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading]             = useState(true);
+  const [page, setPage]                   = useState(0);
+  const [totalPages, setTotalPages]       = useState(0);
+
+  const { resetUnread } = useNotification(); // ← clears bell badge
+
+  // reset badge the moment this page opens
+  useEffect(() => {
+    resetUnread();
+  }, []);
 
   useEffect(() => {
     const fetch = async () => {
@@ -41,6 +52,7 @@ const Notifications = () => {
     try {
       await api.put('/notifications/read-all');
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      resetUnread(); // ← also clear badge when marking all read
     } catch (err) { console.error(err); }
   };
 
@@ -118,11 +130,9 @@ const Notifications = () => {
           </div>
         )}
 
-        {/* ✅ NEW — Footer */}
         <p className="text-center text-xs text-gray-400 mt-10">
           Developed by Ayush Kumar | ECE 2027 Batch
         </p>
-
       </div>
     </div>
   );
