@@ -70,8 +70,6 @@ The frontend expects the backend at the URL in `VITE_API_URL` (defaults to `http
 ## Future Enhancements
 
 - Multi-hostel support (currently scoped to Hostel 10 only by design).
-- Live OpenAPI/Swagger docs (currently a static reference at [`backend/docs/API_REFERENCE.md`](backend/docs/API_REFERENCE.md)).
-- Broader automated test coverage beyond the current auth/complaint read-path suite.
 
 ---
 
