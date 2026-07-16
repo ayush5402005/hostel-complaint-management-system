@@ -36,7 +36,7 @@ HostelDesk is a role-based hostel complaint management system for Hostel 10 (Blo
 - **Role Enforcement:** Every state transition (assign, start work, resolve, close, reject, dispute) is validated server-side against the caller's role and relationship to the complaint — not just hidden in the UI.
 - **Audit Trail:** Every status change is written to a `ComplaintAuditLog` row (who, when, from/to status, note), independent of the complaint's current state.
 - **File Validation:** Uploaded images/PDFs are checked by magic bytes, not just MIME type or extension, before being written to disk.
-- **Migration History:** Originally built on Spring Boot + JPA/MySQL, then migrated 1:1 to this Node/Express/Prisma stack with verified endpoint-for-endpoint behavioral parity, then rescoped from a multi-hostel data model down to Hostel 10 only. Full details in [`backend/docs/MIGRATION_NOTES.md`](backend/docs/MIGRATION_NOTES.md).
+- **Single-Hostel Scoping:** The data model is deliberately scoped to one hostel with two blocks (`A`/`B`) rather than a generic multi-hostel schema, keeping room/vacancy/complaint queries simple and fast.
 
 ---
 
