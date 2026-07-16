@@ -1,11 +1,15 @@
-const fs = require('fs/promises');
-const path = require('path');
-const crypto = require('crypto');
-const env = require('../config/env');
+const cloudinary = require('../config/cloudinary');
 const { BadRequestError } = require('../utils/AppError');
 
 // Mirrors FileUploadController.java's validation order and magic-byte checks
 // exactly: empty -> size -> mime -> extension -> magic bytes -> save.
+//
+// Files are uploaded to Cloudinary rather than local disk — most free/cheap
+// hosting (Render, etc.) doesn't guarantee persistent local disk across
+// restarts/redeploys, so anything written there would eventually vanish.
+// PDFs are uploaded with resource_type 'image' rather than 'raw': newer
+// Cloudinary accounts block raw-file delivery by default, but image-type
+// assets (which Cloudinary can rasterize) are always deliverable.
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -53,12 +57,13 @@ async function saveUploadedFile(file) {
     throw new BadRequestError('Invalid file content');
   }
 
-  await fs.mkdir(env.upload.dir, { recursive: true });
+  const dataUri = `data:${mimeType};base64,${file.buffer.toString('base64')}`;
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder: 'hostel-complaint-management',
+    resource_type: 'image',
+  });
 
-  const filename = `${crypto.randomUUID()}${extension}`;
-  await fs.writeFile(path.join(env.upload.dir, filename), file.buffer);
-
-  return `/uploads/${filename}`;
+  return result.secure_url;
 }
 
 module.exports = { saveUploadedFile, MAX_FILE_SIZE };

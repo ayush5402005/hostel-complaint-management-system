@@ -39,10 +39,6 @@ if (!env.isProduction && env.nodeEnv !== 'test') {
   });
 }
 
-// Mirrors WebConfig.java: serves the upload directory at /uploads/**,
-// public (no auth), matching SecurityConfig's permitAll rule for it.
-app.use('/uploads', express.static(env.upload.dir));
-
 // Mirrors RateLimitFilter.java — runs before JWT auth, only on /api routes.
 app.use('/api', rateLimiter);
 

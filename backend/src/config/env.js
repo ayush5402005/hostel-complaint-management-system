@@ -1,4 +1,3 @@
-const path = require('path');
 require('dotenv').config();
 
 function required(name, fallback) {
@@ -21,8 +20,10 @@ const env = {
     expiresInMs: parseInt(process.env.JWT_EXPIRES_IN_MS || '3600000', 10),
   },
 
-  upload: {
-    dir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads/complaint-images'),
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
   },
 
   mail: {
