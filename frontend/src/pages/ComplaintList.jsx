@@ -1,34 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import AppShell from '../layouts/AppShell';
+import { mediaUrl } from '../utils/mediaUrl';
+import { STATUS_META, PRIORITY_META, STATUS_ORDER, formatDateTime } from '../utils/statusMeta';
+import { Icon, Badge, Button, Input, Select, Modal, EmptyState, SkeletonList, PageHeader } from '../components/ui';
 
-
-const STATUSES = ['', 'CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'];
-
-
-const statusColors = {
-  CREATED:     'bg-gray-100 text-gray-700',
-  ASSIGNED:    'bg-blue-100 text-blue-700',
-  IN_PROGRESS: 'bg-yellow-100 text-yellow-700',
-  RESOLVED:    'bg-green-100 text-green-700',
-  CLOSED:      'bg-purple-100 text-purple-700',
-  REJECTED:    'bg-red-100 text-red-700',
-};
-
-
-const priorityColors = {
-  LOW:    'text-green-600',
-  MEDIUM: 'text-yellow-600',
-  HIGH:   'text-red-600',
-};
-
+const STATUSES = ['', ...STATUS_ORDER];
 
 const priorityOrder = { HIGH: 1, MEDIUM: 2, LOW: 3 };
-const statusOrder   = { CREATED: 1, ASSIGNED: 2, IN_PROGRESS: 3, RESOLVED: 4, REJECTED: 5, CLOSED: 6 };
-
+const statusOrder = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i + 1]));
 
 const smartSort = (list) => [...list].sort((a, b) => {
   if ((a.overdue || a.escalated) && !(b.overdue || b.escalated)) return -1;
@@ -44,33 +27,122 @@ const smartSort = (list) => [...list].sort((a, b) => {
   return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
 });
 
-
 const StarPicker = ({ value, onChange }) => (
-  <div className="flex gap-1">
+  <div className="flex gap-1 justify-center">
     {[1, 2, 3, 4, 5].map(star => (
-      <button key={star} type="button" onClick={() => onChange(star)}
-        className={`text-2xl transition ${star <= value ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'}`}>
-        ★
+      <button key={star} type="button" onClick={() => onChange(star)} className="transition hover:scale-110">
+        <Icon name="starFilled" size={28} className={star <= value ? 'text-amber-400' : 'text-slate-200'} />
       </button>
     ))}
   </div>
 );
 
+const WorkerPicker = ({ workers, value, onChange, onConfirm, loading, label = 'Assign' }) => (
+  <div className="flex gap-2 items-center flex-wrap">
+    {workers.length === 0 ? (
+      <span className="text-xs text-rose-500">No workers available</span>
+    ) : (
+      <>
+        <Select value={value} onChange={e => onChange(e.target.value)} className="!py-1.5 !text-xs w-40">
+          <option value="">Select Worker</option>
+          {workers.map(w => <option key={w.id} value={w.id}>{w.name} {w.department ? `(${w.department})` : ''}</option>)}
+        </Select>
+        <Button size="sm" onClick={onConfirm} loading={loading}>{label}</Button>
+      </>
+    )}
+  </div>
+);
+
+const ComplaintCard = ({ c, onNavigate, actions }) => {
+  const meta = STATUS_META[c.status] || {};
+  const prio = PRIORITY_META[c.priority] || {};
+
+  return (
+    <div
+      className={`bg-white rounded-2xl ring-1 p-5 hover:shadow-md transition cursor-pointer
+        ${c.overdue ? 'ring-rose-200 bg-rose-50/30' : c.escalated ? 'ring-amber-200 bg-amber-50/30' : 'ring-slate-200/80'}`}
+      onClick={onNavigate}
+    >
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-slate-800 text-base">#{c.id} — {c.title}</span>
+            <Badge className={meta.badge} icon={meta.icon}>{meta.label}</Badge>
+            <Badge className={prio.badge}>{prio.label}</Badge>
+            {c.overdue && <Badge tone="rose" icon="alertTriangle" pulse>Overdue</Badge>}
+            {c.escalated && <Badge tone="amber" icon="alertTriangle" pulse>Escalated</Badge>}
+            {c.status === 'CLOSED' && c.rating && (
+              <Badge tone="amber" icon="starFilled">{c.rating}/5</Badge>
+            )}
+          </div>
+
+          <p className="text-sm text-slate-500 mt-1.5">
+            <span className="font-medium text-slate-600">{c.category}</span>
+            {' · '}{c.description?.slice(0, 80)}{c.description?.length > 80 ? '...' : ''}
+          </p>
+
+          <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1 flex-wrap">
+            <Icon name="user" size={11} /> {c.student?.name}
+            <span>· Block {c.student?.hostelBlock} / Room {c.student?.roomNumber}</span>
+            {c.assignedWorker && (
+              <span className="text-blue-500 font-medium flex items-center gap-1">
+                · <Icon name="hardhat" size={11} /> {c.assignedWorker.name}
+              </span>
+            )}
+          </p>
+
+          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+            <Icon name="clock" size={11} /> {c.createdAt ? formatDateTime(c.createdAt) : 'N/A'}
+          </p>
+
+          {c.status === 'REJECTED' && c.rejectionReason && (
+            <p className="text-xs text-rose-500 mt-1 font-medium">Rejected: {c.rejectionReason}</p>
+          )}
+          {c.overdue && <p className="text-xs text-rose-500 mt-1 font-medium">Unresolved for more than 7 days</p>}
+          {c.escalated && !c.overdue && (
+            <p className="text-xs text-amber-600 mt-1 font-medium">HIGH priority — unassigned for more than 24 hours</p>
+          )}
+
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {c.issuePhotoUrl && (
+              <img src={mediaUrl(c.issuePhotoUrl)} alt="Issue"
+                className="h-20 w-32 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-90"
+                onClick={e => { e.stopPropagation(); window.open(mediaUrl(c.issuePhotoUrl), '_blank'); }} />
+            )}
+            {c.resolvedPhotoUrl && (
+              <div className="flex items-center gap-2">
+                <img src={mediaUrl(c.resolvedPhotoUrl)} alt="Resolved proof"
+                  className="h-20 w-32 object-cover rounded-lg border border-emerald-200 cursor-pointer hover:opacity-90"
+                  onClick={e => { e.stopPropagation(); window.open(mediaUrl(c.resolvedPhotoUrl), '_blank'); }} />
+                <span className="text-xs text-emerald-600 font-medium">Proof photo</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 min-w-max" onClick={e => e.stopPropagation()}>
+          {actions}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ComplaintList = () => {
-  const { user }      = useAuth();
-  const { showToast } = useToast();
-  const location      = useLocation();
+  const { user }       = useAuth();
+  const { showToast }  = useToast();
+  const navigate        = useNavigate();
+
+  // ✅ URL is the single source of truth for the status filter — reading it
+  // via useSearchParams (not a one-time useState initializer) means it stays
+  // correct even if the query string changes without a full route remount.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status') || '';
 
   const [complaints, setComplaints]           = useState([]);
   const [workers, setWorkers]                 = useState([]);
   const [page, setPage]                       = useState(0);
   const [totalPages, setTotalPages]           = useState(0);
-
-  const [statusFilter, setStatusFilter] = useState(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('status') || '';
-  });
 
   const [loading, setLoading]                 = useState(true);
   const [actionLoading, setActionLoading]     = useState(null);
@@ -87,9 +159,10 @@ const ComplaintList = () => {
   const [closeModal, setCloseModal]           = useState(null);
   const [rating, setRating]                   = useState(0);
 
-  const navigate = useNavigate();
   const isStaff  = ['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role);
 
+  // Reset to page 0 whenever the status filter changes (via KPI click, link, or dropdown)
+  useEffect(() => { setPage(0); }, [statusFilter]);
 
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
@@ -101,23 +174,27 @@ const ComplaintList = () => {
       setTotalPages(res.data.totalPages || 0);
     } catch (err) {
       console.error(err);
+      showToast('Failed to load complaints', 'error');
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
-
+  }, [page, statusFilter, showToast]);
 
   useEffect(() => {
     if (isStaff) {
       api.get('/admin/workers')
         .then(res => setWorkers(res.data))
-        .catch(err => console.error(err));
+        .catch(() => showToast('Failed to load workers list', 'error'));
     }
-  }, [user.role]);
-
+  }, [isStaff, showToast]);
 
   useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
 
+  const setStatusFilter = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value); else next.delete('status');
+    setSearchParams(next);
+  };
 
   const handleAssign = async (complaintId) => {
     const workerId = selectedWorker[complaintId];
@@ -134,7 +211,6 @@ const ComplaintList = () => {
     }
   };
 
-
   const handleReassign = async (complaintId) => {
     const workerId = selectedWorker[complaintId];
     if (!workerId) { showToast('Please select a worker first', 'warning'); return; }
@@ -150,7 +226,6 @@ const ComplaintList = () => {
       setActionLoading(null);
     }
   };
-
 
   const handleReject = async (complaintId) => {
     const reason = rejectReason[complaintId];
@@ -169,7 +244,6 @@ const ComplaintList = () => {
     }
   };
 
-
   const handleStartWork = async (complaintId) => {
     setActionLoading(complaintId);
     try {
@@ -183,17 +257,13 @@ const ComplaintList = () => {
     }
   };
 
-
   const handlePhotoUpload = async (complaintId, file) => {
     if (!file) return;
     setUploadingPhoto(complaintId);
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      // ✅ No manual Content-Type — browser sets it with correct boundary
       const res = await api.post('/files/upload', formData);
-
       setResolvePhoto(prev => ({ ...prev, [complaintId]: res.data.url }));
       showToast('Photo uploaded successfully!', 'success');
     } catch (err) {
@@ -202,7 +272,6 @@ const ComplaintList = () => {
       setUploadingPhoto(null);
     }
   };
-
 
   const handleMarkResolved = async (complaintId) => {
     setActionLoading(complaintId);
@@ -222,7 +291,6 @@ const ComplaintList = () => {
     }
   };
 
-
   const handleCloseWithRating = async () => {
     if (!closeModal) return;
     setActionLoading(closeModal.id);
@@ -239,414 +307,205 @@ const ComplaintList = () => {
     }
   };
 
-
-  const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
-
-
   const filtered = complaints.filter(c =>
     c.title?.toLowerCase().includes(search.toLowerCase()) ||
     c.category?.toLowerCase().includes(search.toLowerCase()) ||
     c.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <AppShell wide>
+      <Modal
+        open={!!closeModal}
+        onClose={() => { setCloseModal(null); setRating(0); }}
+        icon="lock"
+        title="Close Complaint"
+        subtitle={closeModal ? `#${closeModal.id} — ${closeModal.title}` : ''}
+      >
+        <p className="text-sm font-semibold text-slate-700 mb-2 text-center">
+          Rate the work done <span className="text-slate-400 font-normal">(optional)</span>
+        </p>
+        <StarPicker value={rating} onChange={setRating} />
+        {rating > 0 && (
+          <p className="text-xs text-amber-600 mt-2 font-medium text-center">
+            You selected {rating} star{rating !== 1 ? 's' : ''}
+          </p>
+        )}
+        <div className="flex gap-2 mt-5">
+          <Button variant="secondary" className="flex-1" onClick={() => { setCloseModal(null); setRating(0); }}>Cancel</Button>
+          <Button className="flex-1" onClick={handleCloseWithRating} loading={actionLoading === closeModal?.id} icon="checkCircle">
+            Close Complaint
+          </Button>
+        </div>
+      </Modal>
 
-
-      {/* Close + Rate Modal */}
-      {closeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-1">Close Complaint</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              #{closeModal.id} — {closeModal.title}
-            </p>
-            <p className="text-sm font-semibold text-gray-700 mb-2">
-              Rate the work done: <span className="text-gray-400">(optional)</span>
-            </p>
-            <StarPicker value={rating} onChange={setRating} />
-            {rating > 0 && (
-              <p className="text-xs text-yellow-600 mt-1 font-medium">
-                You selected {rating} star{rating !== 1 ? 's' : ''}
-              </p>
+      <PageHeader
+        title={<span className="flex items-center gap-3 flex-wrap">Complaints {statusFilter && <Badge className={STATUS_META[statusFilter]?.badge}>{STATUS_META[statusFilter]?.label}</Badge>}</span>}
+        action={
+          <>
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="!py-2 w-40">
+              {STATUSES.map(s => <option key={s} value={s}>{s ? STATUS_META[s]?.label : 'All Status'}</option>)}
+            </Select>
+            {user.role === 'STUDENT' && (
+              <Link to="/complaints/new">
+                <Button icon="plus">New</Button>
+              </Link>
             )}
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => { setCloseModal(null); setRating(0); }}
-                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition">
-                Cancel
-              </button>
-              <button onClick={handleCloseWithRating}
-                disabled={actionLoading === closeModal.id}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50">
-                {actionLoading === closeModal.id ? 'Closing...' : '✓ Close Complaint'}
-              </button>
-            </div>
-          </div>
+          </>
+        }
+      />
+
+      <div className="mb-6 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Icon name="search" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text"
+            placeholder="Search by title, category or description..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+          />
+        </div>
+        {search && <span className="text-xs text-slate-400 flex-shrink-0">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>}
+      </div>
+
+      {loading ? <SkeletonList count={5} /> : filtered.length === 0 ? (
+        <EmptyState
+          icon="clipboard"
+          title={search ? 'No complaints match your search' : statusFilter ? `No ${STATUS_META[statusFilter]?.label.toLowerCase()} complaints` : 'No complaints found'}
+          description={statusFilter && !search ? 'Try a different status filter, or clear it to see everything.' : null}
+          action={user.role === 'STUDENT' && !search && !statusFilter && (
+            <Link to="/complaints/new"><Button icon="plus">Create your first complaint</Button></Link>
+          )}
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(c => (
+            <ComplaintCard
+              key={c.id} c={c}
+              onNavigate={() => navigate(`/complaints/${c.id}`)}
+              actions={
+                <>
+                  {isStaff && c.status === 'CREATED' && (
+                    <WorkerPicker workers={workers} value={selectedWorker[c.id] || ''}
+                      onChange={v => setSelectedWorker({ ...selectedWorker, [c.id]: v })}
+                      onConfirm={() => handleAssign(c.id)} loading={actionLoading === c.id} label="Assign" />
+                  )}
+
+                  {isStaff && ['ASSIGNED', 'IN_PROGRESS'].includes(c.status) && (
+                    <div className="flex flex-col gap-1.5">
+                      <Button size="sm" variant="subtle" icon="refresh"
+                        onClick={() => setShowReassignBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}>
+                        Reassign
+                      </Button>
+                      {showReassignBox[c.id] && (
+                        <WorkerPicker workers={workers} value={selectedWorker[c.id] || ''}
+                          onChange={v => setSelectedWorker({ ...selectedWorker, [c.id]: v })}
+                          onConfirm={() => handleReassign(c.id)} loading={actionLoading === c.id} label="Confirm" />
+                      )}
+                    </div>
+                  )}
+
+                  {isStaff && !['CLOSED', 'REJECTED'].includes(c.status) && (
+                    <div className="flex flex-col gap-1.5">
+                      <Button size="sm" variant="danger" icon="xCircle"
+                        onClick={() => setShowRejectBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}>
+                        Reject
+                      </Button>
+                      {showRejectBox[c.id] && (
+                        <div className="flex flex-col gap-1.5">
+                          <input type="text" placeholder="Reason for rejection..."
+                            value={rejectReason[c.id] || ''}
+                            onChange={e => setRejectReason(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            className="border border-rose-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-48" />
+                          <Button size="sm" variant="dangerFill" onClick={() => handleReject(c.id)} loading={actionLoading === c.id}>
+                            Confirm Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {user.role === 'WORKER' && c.status === 'ASSIGNED' && (
+                    <Button size="sm" variant="warning" icon="wrench"
+                      onClick={() => handleStartWork(c.id)} loading={actionLoading === c.id}>
+                      Start Work
+                    </Button>
+                  )}
+
+                  {user.role === 'WORKER' && c.status === 'IN_PROGRESS' && (
+                    <div className="flex flex-col gap-1.5">
+                      <Button size="sm" variant="success" icon="checkCircle"
+                        onClick={() => setShowResolveBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}>
+                        Mark Resolved
+                      </Button>
+                      {showResolveBox[c.id] && (
+                        <div className="flex flex-col gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl w-56">
+                          <p className="text-xs font-semibold text-emerald-700">Upload proof photo (optional)</p>
+                          <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition
+                            ${resolvePhoto[c.id] ? 'border-emerald-400 bg-emerald-100' : 'border-emerald-300 bg-white hover:bg-emerald-50'}`}>
+                            <Icon name={resolvePhoto[c.id] ? 'checkCircle' : uploadingPhoto === c.id ? 'loader' : 'image'} size={18}
+                              className={`text-emerald-600 flex-shrink-0 ${uploadingPhoto === c.id ? 'animate-spin' : ''}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-emerald-700">
+                                {resolvePhoto[c.id] ? 'Photo uploaded!' : uploadingPhoto === c.id ? 'Uploading...' : 'Choose photo'}
+                              </p>
+                              <p className="text-xs text-slate-400 truncate">
+                                {resolvePhoto[c.id] ? resolvePhoto[c.id].split('/').pop() : 'JPG, PNG'}
+                              </p>
+                            </div>
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handlePhotoUpload(c.id, e.target.files[0])} />
+                          </label>
+                          <Button size="sm" variant="success" className="w-full"
+                            onClick={() => handleMarkResolved(c.id)} loading={actionLoading === c.id || uploadingPhoto === c.id}>
+                            Confirm Resolved
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {user.role === 'STUDENT' && c.status === 'RESOLVED' && (
+                    <Button size="sm" variant="accent" icon="lock"
+                      onClick={() => { setCloseModal(c); setRating(0); }} loading={actionLoading === c.id}>
+                      Close & Rate
+                    </Button>
+                  )}
+                </>
+              }
+            />
+          ))}
         </div>
       )}
 
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6 flex-wrap">
+          <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(p => p - 1)} icon="chevronLeft">Prev</Button>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">
-            Complaints
-            {statusFilter && (
-              <span className={`ml-3 text-sm font-semibold px-3 py-1 rounded-full ${statusColors[statusFilter]}`}>
-                {statusFilter}
-              </span>
-            )}
-          </h1>
-          <div className="flex gap-3 items-center">
-            <select value={statusFilter}
-              onChange={e => { setStatusFilter(e.target.value); setPage(0); }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              {STATUSES.map(s => (
-                <option key={s} value={s}>{s || 'All Status'}</option>
-              ))}
-            </select>
-            {user.role === 'STUDENT' && (
-              <Link to="/complaints/new"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                + New
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="mb-6 flex items-center gap-3">
-          <input type="text"
-            placeholder="🔍 Search by title, category or description..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          {search && (
-            <span className="text-xs text-gray-400">
-              {filtered.length} result{filtered.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-
-
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">📋</p>
-            <p className="text-lg font-medium">
-              {search ? 'No complaints match your search' : 'No complaints found'}
-            </p>
-            {user.role === 'STUDENT' && !search && (
-              <Link to="/complaints/new"
-                className="mt-4 inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">
-                Create your first complaint
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map(c => (
-              <div key={c.id}
-                className={`bg-white rounded-xl border p-5 hover:shadow-md transition cursor-pointer
-                  ${c.overdue    ? 'border-red-300 bg-red-50/30'
-                  : c.escalated ? 'border-orange-300 bg-orange-50/30'
-                  : 'border-gray-200'}`}
-                onClick={() => navigate(`/complaints/${c.id}`)}
-              >
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-
-                  {/* Left */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-800 text-base">
-                        #{c.id} — {c.title}
-                      </span>
-                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${statusColors[c.status]}`}>
-                        {c.status}
-                      </span>
-                      <span className={`text-xs font-semibold ${priorityColors[c.priority]}`}>
-                        ↑ {c.priority}
-                      </span>
-                      {c.overdue && (
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 animate-pulse">
-                          🔴 OVERDUE
-                        </span>
-                      )}
-                      {c.escalated && (
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-700 animate-pulse">
-                          🚨 ESCALATED
-                        </span>
-                      )}
-                      {c.status === 'CLOSED' && c.rating && (
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
-                          ⭐ {c.rating}/5
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-sm text-gray-500 mt-1">
-                      <span className="font-medium text-gray-600">{c.category}</span>
-                      {' · '}
-                      {c.description?.slice(0, 80)}{c.description?.length > 80 ? '...' : ''}
-                    </p>
-
-                    <p className="text-xs text-gray-400 mt-1">
-                      By: <span className="font-medium text-gray-600">{c.student?.name}</span>
-                      {' · '}Block {c.student?.hostelBlock} / Room {c.student?.roomNumber}
-                      {c.assignedWorker && (
-                        <span className="text-blue-500 font-medium"> · 👷 {c.assignedWorker.name}</span>
-                      )}
-                    </p>
-
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      🕐 {c.createdAt ? formatDate(c.createdAt) : 'N/A'}
-                    </p>
-
-                    {c.status === 'REJECTED' && c.rejectionReason && (
-                      <p className="text-xs text-red-500 mt-1 font-medium">
-                        ❌ Rejected: {c.rejectionReason}
-                      </p>
-                    )}
-                    {c.overdue && (
-                      <p className="text-xs text-red-500 mt-1 font-medium">
-                        ⚠️ Unresolved for more than 7 days
-                      </p>
-                    )}
-                    {c.escalated && !c.overdue && (
-                      <p className="text-xs text-orange-500 mt-1 font-medium">
-                        ⚠️ HIGH priority — unassigned for more than 24 hours
-                      </p>
-                    )}
-                    {c.issuePhotoUrl && (
-                      <img
-                        src={`http://localhost:8080${c.issuePhotoUrl}`}
-                        alt="Issue"
-                        className="mt-2 h-20 w-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90"
-                        onClick={e => { e.stopPropagation(); window.open(`http://localhost:8080${c.issuePhotoUrl}`, '_blank'); }}
-                      />
-                    )}
-                    {c.resolvedPhotoUrl && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <img
-                          src={`http://localhost:8080${c.resolvedPhotoUrl}`}
-                          alt="Resolved proof"
-                          className="h-20 w-32 object-cover rounded-lg border border-green-200 cursor-pointer hover:opacity-90"
-                          onClick={e => { e.stopPropagation(); window.open(`http://localhost:8080${c.resolvedPhotoUrl}`, '_blank'); }}
-                        />
-                        <span className="text-xs text-green-600 font-medium">✅ Proof photo</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right — Actions */}
-                  <div className="flex flex-col gap-2 min-w-max" onClick={e => e.stopPropagation()}>
-
-                    {/* STAFF — Assign */}
-                    {isStaff && c.status === 'CREATED' && (
-                      <div className="flex gap-2 items-center">
-                        {workers.length === 0 ? (
-                          <span className="text-xs text-red-500">No workers available</span>
-                        ) : (
-                          <>
-                            <select
-                              value={selectedWorker[c.id] || ''}
-                              onChange={e => setSelectedWorker({ ...selectedWorker, [c.id]: e.target.value })}
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
-                              <option value="">Select Worker</option>
-                              {workers.map(w => (
-                                <option key={w.id} value={w.id}>
-                                  {w.name} {w.department ? `(${w.department})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            <button onClick={() => handleAssign(c.id)}
-                              disabled={actionLoading === c.id}
-                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50">
-                              {actionLoading === c.id ? '...' : 'Assign'}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* STAFF — Reassign */}
-                    {isStaff && ['ASSIGNED', 'IN_PROGRESS'].includes(c.status) && (
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => setShowReassignBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
-                          className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs px-3 py-1.5 rounded-lg transition">
-                          🔄 Reassign
-                        </button>
-                        {showReassignBox[c.id] && (
-                          <div className="flex gap-2 items-center mt-1">
-                            <select
-                              value={selectedWorker[c.id] || ''}
-                              onChange={e => setSelectedWorker({ ...selectedWorker, [c.id]: e.target.value })}
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
-                              <option value="">Select Worker</option>
-                              {workers.map(w => (
-                                <option key={w.id} value={w.id}>
-                                  {w.name} {w.department ? `(${w.department})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            <button onClick={() => handleReassign(c.id)}
-                              disabled={actionLoading === c.id}
-                              className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-50">
-                              {actionLoading === c.id ? '...' : 'Confirm'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* STAFF — Reject */}
-                    {isStaff && !['CLOSED', 'REJECTED'].includes(c.status) && (
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => setShowRejectBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
-                          className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg transition">
-                          ❌ Reject
-                        </button>
-                        {showRejectBox[c.id] && (
-                          <div className="flex flex-col gap-1 mt-1">
-                            <input type="text"
-                              placeholder="Reason for rejection..."
-                              value={rejectReason[c.id] || ''}
-                              onChange={e => setRejectReason(prev => ({ ...prev, [c.id]: e.target.value }))}
-                              className="border border-red-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-48"
-                            />
-                            <button onClick={() => handleReject(c.id)}
-                              disabled={actionLoading === c.id}
-                              className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-50">
-                              {actionLoading === c.id ? '...' : 'Confirm Reject'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* WORKER — Start Work */}
-                    {user.role === 'WORKER' && c.status === 'ASSIGNED' && (
-                      <button onClick={() => handleStartWork(c.id)}
-                        disabled={actionLoading === c.id}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50">
-                        {actionLoading === c.id ? '...' : '▶ Start Work'}
-                      </button>
-                    )}
-
-                    {/* WORKER — Mark Resolved + Upload Photo */}
-                    {user.role === 'WORKER' && c.status === 'IN_PROGRESS' && (
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => setShowResolveBox(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
-                          className="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg transition">
-                          ✓ Mark Resolved
-                        </button>
-                        {showResolveBox[c.id] && (
-                          <div className="flex flex-col gap-2 mt-1 p-3 bg-green-50 border border-green-200 rounded-xl w-56">
-                            <p className="text-xs font-semibold text-green-700">Upload proof photo (optional)</p>
-                            <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition
-                              ${resolvePhoto[c.id]
-                                ? 'border-green-400 bg-green-100'
-                                : 'border-green-300 bg-white hover:bg-green-50'}`}>
-                              <span className="text-xl">
-                                {resolvePhoto[c.id] ? '✅' : uploadingPhoto === c.id ? '⏳' : '📷'}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-green-700">
-                                  {resolvePhoto[c.id] ? 'Photo uploaded!'
-                                    : uploadingPhoto === c.id ? 'Uploading...'
-                                    : 'Choose photo'}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  {resolvePhoto[c.id]
-                                    ? resolvePhoto[c.id].split('/').pop()
-                                    : 'JPG, PNG'}
-                                </p>
-                              </div>
-                              <input type="file" accept="image/*" className="hidden"
-                                onChange={e => handlePhotoUpload(c.id, e.target.files[0])} />
-                            </label>
-                            <button onClick={() => handleMarkResolved(c.id)}
-                              disabled={actionLoading === c.id || uploadingPhoto === c.id}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg disabled:opacity-50 font-medium transition">
-                              {actionLoading === c.id ? 'Saving...' : 'Confirm Resolved'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* STUDENT — Close + Rate */}
-                    {user.role === 'STUDENT' && c.status === 'RESOLVED' && (
-                      <button
-                        onClick={() => { setCloseModal(c); setRating(0); }}
-                        disabled={actionLoading === c.id}
-                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50">
-                        ✓ Close & Rate
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6 flex-wrap">
-            <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition">
-              ← Prev
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i)
-              .filter(i => i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1)
-              .reduce((acc, i, idx, arr) => {
-                if (idx > 0 && i - arr[idx - 1] > 1) acc.push('...');
-                acc.push(i);
-                return acc;
-              }, [])
-              .map((item, idx) =>
-                item === '...' ? (
-                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">...</span>
-                ) : (
-                  <button key={item} onClick={() => setPage(item)}
-                    className={`w-9 h-9 text-sm rounded-lg border transition font-medium
-                      ${page === item
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                      }`}>
-                    {item + 1}
-                  </button>
-                )
+          {Array.from({ length: totalPages }, (_, i) => i)
+            .filter(i => i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1)
+            .reduce((acc, i, idx, arr) => {
+              if (idx > 0 && i - arr[idx - 1] > 1) acc.push('...');
+              acc.push(i);
+              return acc;
+            }, [])
+            .map((item, idx) =>
+              item === '...' ? (
+                <span key={`dots-${idx}`} className="px-2 text-slate-400 text-sm">...</span>
+              ) : (
+                <button key={item} onClick={() => setPage(item)}
+                  className={`w-9 h-9 text-sm rounded-lg ring-1 transition font-medium
+                    ${page === item ? 'bg-indigo-600 text-white ring-indigo-600' : 'ring-slate-300 text-slate-700 hover:bg-slate-100'}`}>
+                  {item + 1}
+                </button>
               )
-            }
+            )}
 
-            <button disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition">
-              Next →
-            </button>
-          </div>
-        )}
-
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Developed by Ayush Kumar | ECE 2027 Batch
-        </p>
-      </div>
-    </div>
+          <Button size="sm" variant="secondary" disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}>
+            Next <Icon name="chevronRight" size={14} />
+          </Button>
+        </div>
+      )}
+    </AppShell>
   );
 };
 

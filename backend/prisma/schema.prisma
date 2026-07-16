@@ -1,0 +1,318 @@
+// Prisma schema — originally introspected from the live MySQL "hostel_db"
+// database (the same schema the Spring Boot backend used), then updated by
+// prisma/migrations_manual/01_hostel10_scoping.sql, which dropped the
+// `hostels` and `blocks` tables (this app now serves exactly one hostel)
+// and replaced FK-based block assignment with a simple Block enum column.
+// Models are renamed to PascalCase / camelCase for idiomatic Node code via
+// @@map / @map, so the underlying table/column names otherwise match the DB.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums (match the live MySQL ENUM columns exactly)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  WORKER
+  CARETAKER
+  WARDEN
+  ADMIN
+
+  @@map("users_role")
+}
+
+enum ComplaintCategory {
+  BUILDING_CIVIL
+  CLEANING
+  ELECTRICAL
+  FURNITURE
+  GEYSER
+  LIBRARY
+  OTHER
+  PLUMBING
+  ROOM_REPAIR
+  WATER_COOLER
+  WIFI_INTERNET
+
+  @@map("complaints_category")
+}
+
+enum ComplaintPriority {
+  HIGH
+  LOW
+  MEDIUM
+
+  @@map("complaints_priority")
+}
+
+enum ComplaintStatus {
+  ASSIGNED
+  CLOSED
+  CREATED
+  DISPUTED
+  IN_PROGRESS
+  REJECTED
+  RESOLVED
+
+  @@map("complaints_status")
+}
+
+enum MediaUploadedBy {
+  STUDENT
+  WORKER
+
+  @@map("complaint_media_uploaded_by")
+}
+
+// This app now serves exactly one hostel (Hostel 10), so "which hostel" is
+// no longer data — the only thing that still varies per student is which of
+// its two blocks they're in. See docs/MIGRATION_NOTES.md "Hostel-10 scoping".
+enum Block {
+  A
+  B
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────
+
+model Department {
+  id          BigInt  @id @default(autoincrement())
+  name        String  @unique(map: "UKj6cwks7xecs5jov19ro8ge3qk") @db.VarChar(255)
+  description String? @db.VarChar(255)
+  active      Boolean @db.Bit(1)
+
+  workers User[]
+
+  @@map("departments")
+}
+
+model User {
+  id             BigInt   @id @default(autoincrement())
+  name           String   @db.VarChar(255)
+  email          String   @unique(map: "UK6dotkott2kjsp8vw4d0m25fb7") @db.VarChar(255)
+  password       String   @db.VarChar(255)
+  role           Role
+  phoneNumber    String   @unique(map: "UK9q63snka3mdh91as4io72espi") @map("phone_number") @db.VarChar(255)
+  scholarNumber  String?  @unique(map: "UKgbc1njowowo8b1rukcvpjhxrl") @map("scholar_number") @db.VarChar(255)
+  roomNumber     String?  @map("room_number") @db.VarChar(255)
+  block          Block?
+  active         Boolean  @db.Bit(1)
+  appEnabled     Boolean  @map("app_enabled") @db.Bit(1)
+
+  // Worker department
+  departmentId BigInt? @map("department_id")
+
+  department Department? @relation(fields: [departmentId], references: [id], map: "FKsbg59w8q63i0oo53rlgvlcnjq")
+
+  complaintsAsStudent Complaint[]        @relation("ComplaintStudent")
+  complaintsAsWorker  Complaint[]        @relation("ComplaintWorker")
+  comments            ComplaintComment[]
+  notices             Notice[]
+  notifications       Notification[]
+  studentProfile      StudentProfile?
+
+  @@index([departmentId], map: "FKsbg59w8q63i0oo53rlgvlcnjq")
+  @@index([active], map: "idx_user_active")
+  @@index([email], map: "idx_user_email")
+  @@index([role], map: "idx_user_role")
+  @@index([scholarNumber], map: "idx_user_scholar_number")
+  @@map("users")
+}
+
+model Complaint {
+  id BigInt @id @default(autoincrement())
+
+  title       String @db.VarChar(200)
+  description String @db.VarChar(1000)
+
+  category ComplaintCategory
+  priority ComplaintPriority
+  status   ComplaintStatus
+
+  rejectionReason String? @map("rejection_reason") @db.VarChar(500)
+
+  rating     Int?
+  reviewText String? @map("review_text") @db.VarChar(1000)
+
+  disputeReason String?   @map("dispute_reason") @db.VarChar(500)
+  disputedAt    DateTime? @map("disputed_at") @db.DateTime(6)
+  resolvedAt    DateTime? @map("resolved_at") @db.DateTime(6)
+
+  isOverdue          Boolean   @map("is_overdue") @db.Bit(1)
+  isEscalated        Boolean   @map("is_escalated") @db.Bit(1)
+  lastSlaNotifiedAt  DateTime? @map("last_sla_notified_at") @db.DateTime(6)
+
+  slot1Day  String? @map("slot1_day") @db.VarChar(20)
+  slot1Time String? @map("slot1_time") @db.VarChar(100)
+  slot2Day  String? @map("slot2_day") @db.VarChar(20)
+  slot2Time String? @map("slot2_time") @db.VarChar(100)
+  slot3Day  String? @map("slot3_day") @db.VarChar(20)
+  slot3Time String? @map("slot3_time") @db.VarChar(100)
+
+  block     Block?
+  studentId BigInt  @map("student_id")
+  workerId  BigInt? @map("worker_id")
+
+  student        User  @relation("ComplaintStudent", fields: [studentId], references: [id], map: "FKnpv9kh2do0j2a1qfqqsk2sqtu")
+  assignedWorker User? @relation("ComplaintWorker", fields: [workerId], references: [id], map: "FK9pwyiltcpfutqrebk5a704jl8")
+
+  media    ComplaintMedia[]
+  comments ComplaintComment[]
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.DateTime(6)
+
+  @@index([createdAt], map: "idx_complaint_created_at")
+  @@index([priority], map: "idx_complaint_priority")
+  @@index([status], map: "idx_complaint_status")
+  @@index([studentId], map: "idx_complaint_student_id")
+  @@index([studentId, status], map: "idx_complaint_student_status")
+  @@index([workerId], map: "idx_complaint_worker_id")
+  @@map("complaints")
+}
+
+model ComplaintMedia {
+  id          BigInt           @id @default(autoincrement())
+  complaintId BigInt           @map("complaint_id")
+  mediaUrl    String           @map("media_url") @db.VarChar(500)
+  uploadedBy  MediaUploadedBy  @map("uploaded_by")
+  createdAt   DateTime?        @default(now()) @map("created_at") @db.DateTime(6)
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], map: "FKriwfvdcubqxhrsfnwh8h9299k")
+
+  @@index([complaintId], map: "idx_media_complaint_id")
+  @@index([uploadedBy], map: "idx_media_uploaded_by")
+  @@map("complaint_media")
+}
+
+model ComplaintComment {
+  id          BigInt    @id @default(autoincrement())
+  complaintId BigInt    @map("complaint_id")
+  userId      BigInt    @map("user_id")
+  message     String    @db.Text
+  createdAt   DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], map: "FKkbgqbs9ha6itbn6cb3kjfhn66")
+  user      User      @relation(fields: [userId], references: [id], map: "FKj3ipy69qv1x6998qjfu8fdmay")
+
+  @@index([userId], map: "FKj3ipy69qv1x6998qjfu8fdmay")
+  @@index([complaintId], map: "FKkbgqbs9ha6itbn6cb3kjfhn66")
+  @@map("complaint_comments")
+}
+
+model ComplaintRating {
+  id          BigInt    @id @default(autoincrement())
+  complaintId BigInt    @map("complaint_id")
+  workerId    BigInt    @map("worker_id")
+  studentId   BigInt    @map("student_id")
+  rating      Int
+  comment     String?   @db.VarChar(300)
+  createdAt   DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  @@map("complaint_ratings")
+}
+
+model ComplaintAuditLog {
+  id            BigInt    @id @default(autoincrement())
+  complaintId   BigInt    @map("complaint_id")
+  changedByName String    @map("changed_by_name") @db.VarChar(255)
+  changedByRole String    @map("changed_by_role") @db.VarChar(255)
+  fromStatus    String?   @map("from_status") @db.VarChar(255)
+  toStatus      String?   @map("to_status") @db.VarChar(255)
+  note          String?   @db.VarChar(500)
+  changedAt     DateTime? @default(now()) @map("changed_at") @db.DateTime(6)
+
+  @@map("complaint_audit_logs")
+}
+
+model Notice {
+  id        BigInt    @id @default(autoincrement())
+  title     String    @db.VarChar(200)
+  content   String    @db.Text
+  imageUrl  String?   @map("image_url") @db.VarChar(255)
+  postedBy  BigInt    @map("posted_by")
+  deleted   Boolean   @db.Bit(1)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  poster User @relation(fields: [postedBy], references: [id], map: "FKp1mv54ngc0ukkblur0idpgdvk")
+
+  @@index([postedBy], map: "FKp1mv54ngc0ukkblur0idpgdvk")
+  @@index([createdAt], map: "idx_notice_created_at")
+  @@index([deleted], map: "idx_notice_deleted")
+  @@map("notices")
+}
+
+model Notification {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt    @map("user_id")
+  message   String    @db.VarChar(255)
+  type      String?   @db.VarChar(255)
+  isRead    Boolean   @map("is_read") @db.Bit(1)
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  user User @relation(fields: [userId], references: [id], map: "FK9y21adhxn0ayjhfocscqox7bh")
+
+  @@index([userId], map: "FK9y21adhxn0ayjhfocscqox7bh")
+  @@map("notifications")
+}
+
+model OtpVerification {
+  id        BigInt    @id @default(autoincrement())
+  email     String    @db.VarChar(255)
+  otp       String    @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.DateTime(6)
+  attempts  Int
+  used      Boolean   @db.Bit(1)
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  @@index([email], map: "idx_otp_email")
+  @@map("otp_verifications")
+}
+
+model PasswordResetToken {
+  id        BigInt    @id @default(autoincrement())
+  token     String    @unique(map: "UK71lqwbwtklmljk3qlsugr1mig") @db.VarChar(255)
+  email     String    @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.DateTime(6)
+  used      Boolean   @db.Bit(1)
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+
+  @@index([email], map: "idx_reset_email")
+  @@index([token], map: "idx_reset_token")
+  @@map("password_reset_tokens")
+}
+
+model StudentProfile {
+  id     BigInt @id @default(autoincrement())
+  userId BigInt @unique(map: "UKhlcwb2egnj8mj3e0mouse1lgy") @map("user_id")
+
+  hostelFeeUtr           String? @map("hostel_fee_utr")
+  hostelFeeAmount        Float?  @map("hostel_fee_amount")
+  hostelFeeScreenshotUrl String? @map("hostel_fee_screenshot_url")
+
+  messFeeUtr           String? @map("mess_fee_utr")
+  messFeeAmount        Float?  @map("mess_fee_amount")
+  messFeeScreenshotUrl String? @map("mess_fee_screenshot_url")
+
+  parentContact   String? @map("parent_contact")
+  homeAddress     String? @map("home_address") @db.VarChar(500)
+  profilePhotoUrl String? @map("profile_photo_url")
+  profileComplete Boolean @map("profile_complete") @db.Bit(1)
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.DateTime(6)
+
+  user User @relation(fields: [userId], references: [id], map: "FK32koy3tgqtaujxhfsn0b9pel2")
+
+  @@map("student_profiles")
+}

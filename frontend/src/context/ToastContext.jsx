@@ -1,7 +1,15 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
+import { Icon } from '../components/ui';
 
 const ToastContext = createContext();
 export const useToast = () => useContext(ToastContext);
+
+const STYLES = {
+  success: { icon: 'checkCircle', className: 'bg-emerald-600' },
+  error:   { icon: 'xCircle',     className: 'bg-rose-600' },
+  warning: { icon: 'alertTriangle', className: 'bg-amber-500' },
+  info:    { icon: 'info',        className: 'bg-slate-800' },
+};
 
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
@@ -14,31 +22,26 @@ export const ToastProvider = ({ children }) => {
     }, 3500);
   }, []);
 
-  const removeToast = (id) =>
-    setToasts(prev => prev.filter(t => t.id !== id));
+  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div style={styles.container}>
-        {toasts.map(toast => (
-          <div key={toast.id} style={{ ...styles.toast, ...styles[toast.type] }}>
-            <span>{toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : toast.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-            <span style={{ flex: 1 }}>{toast.message}</span>
-            <button onClick={() => removeToast(toast.id)} style={styles.close}>×</button>
-          </div>
-        ))}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-2.5 z-[9999] max-w-[calc(100vw-3rem)]">
+        {toasts.map(toast => {
+          const style = STYLES[toast.type] || STYLES.info;
+          return (
+            <div key={toast.id}
+              className={`animate-toast-in flex items-center gap-3 px-4 py-3 rounded-xl min-w-[280px] max-w-[400px] text-white font-medium text-sm shadow-lg ${style.className}`}>
+              <Icon name={style.icon} size={18} className="flex-shrink-0" />
+              <span className="flex-1 break-words">{toast.message}</span>
+              <button onClick={() => removeToast(toast.id)} className="text-white/80 hover:text-white flex-shrink-0">
+                <Icon name="x" size={15} />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );
-};
-
-const styles = {
-  container: { position: 'fixed', bottom: '24px', right: '24px', display: 'flex', flexDirection: 'column', gap: '10px', zIndex: 9999 },
-  toast:     { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '10px', minWidth: '280px', maxWidth: '400px', color: '#fff', fontWeight: '500', fontSize: '14px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' },
-  success:   { background: 'linear-gradient(135deg, #11998e, #38ef7d)' },
-  error:     { background: 'linear-gradient(135deg, #cb2d3e, #ef473a)' },
-  warning:   { background: 'linear-gradient(135deg, #f7971e, #ffd200)' },
-  info:      { background: 'linear-gradient(135deg, #4776e6, #8e54e9)' },
-  close:     { background: 'none', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', lineHeight: 1 },
 };

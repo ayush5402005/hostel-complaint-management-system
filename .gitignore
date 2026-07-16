@@ -1,0 +1,5 @@
+node_modules
+
+# Personal reference/study material only (old Java backend, DB backups with
+# real user data, stray artifacts) — never pushed to GitHub.
+study-reference/

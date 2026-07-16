@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import AppShell from '../layouts/AppShell';
+import { formatDate } from '../utils/statusMeta';
+import { PageHeader, Card, CardHeader, Input, Textarea, Button, Icon, Badge, EmptyState, SkeletonList } from '../components/ui';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']; // ✅ added pdf
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const NoticeBoardPage = () => {
   const { user }      = useAuth();
@@ -13,37 +15,38 @@ const NoticeBoardPage = () => {
   const navigate      = useNavigate();
 
   const [notices, setNotices]               = useState([]);
+  const [noticesLoading, setNoticesLoading] = useState(true);
   const [title, setTitle]                   = useState('');
   const [content, setContent]               = useState('');
   const [loading, setLoading]               = useState(false);
   const [imageUrl, setImageUrl]             = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState(''); // ✅ track pdf name
-  const [uploadedFileType, setUploadedFileType] = useState(''); // ✅ track file type
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadedFileType, setUploadedFileType] = useState('');
 
   const canPost = ['ADMIN', 'WARDEN', 'CARETAKER'].includes(user?.role);
 
-  const fetchNotices = async () => {
+  const fetchNotices = useCallback(async () => {
+    setNoticesLoading(true);
     try {
       const res = await api.get('/notices');
       setNotices(res.data);
     } catch {
       showToast('Failed to load notices', 'error');
+    } finally {
+      setNoticesLoading(false);
     }
-  };
+  }, [showToast]);
 
-  useEffect(() => { fetchNotices(); }, []);
+  useEffect(() => { fetchNotices(); }, [fetchNotices]);
 
   const handleImageUpload = async (file) => {
     if (!file) return;
 
-    // ✅ Type check
     if (!ALLOWED_TYPES.includes(file.type)) {
       showToast('Only JPG, PNG, WEBP and PDF files are allowed', 'error');
       return;
     }
-
-    // ✅ Size check
     if (file.size > 5 * 1024 * 1024) {
       showToast('File must be less than 5MB', 'error');
       return;
@@ -55,7 +58,6 @@ const NoticeBoardPage = () => {
       formData.append('file', file);
       formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
 
-      // ✅ PDFs need resource_type=raw on Cloudinary
       const resourceType = file.type === 'application/pdf' ? 'raw' : 'image';
 
       const res = await fetch(
@@ -81,16 +83,8 @@ const NoticeBoardPage = () => {
     }
     setLoading(true);
     try {
-      await api.post('/notices', {
-        title,
-        content,
-        imageUrl: imageUrl || null,
-      });
-      setTitle('');
-      setContent('');
-      setImageUrl('');
-      setUploadedFileName('');
-      setUploadedFileType('');
+      await api.post('/notices', { title, content, imageUrl: imageUrl || null });
+      setTitle(''); setContent(''); setImageUrl(''); setUploadedFileName(''); setUploadedFileType('');
       showToast('Notice posted successfully!', 'success');
       fetchNotices();
     } catch {
@@ -113,174 +107,97 @@ const NoticeBoardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="max-w-3xl mx-auto px-4 py-8">
+    <AppShell>
+      <PageHeader title="Notice Board" subtitle="Announcements from hostel staff" />
 
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">📋 Notice Board</h1>
+      {canPost && (
+        <Card className="mb-6 space-y-3.5">
+          <CardHeader title="Post New Notice" />
+          <Input placeholder="Notice Title" value={title} onChange={e => setTitle(e.target.value)} />
+          <Textarea placeholder="Notice content..." value={content} onChange={e => setContent(e.target.value)} rows={4} />
 
-        {/* Post Notice */}
-        {canPost && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase">Post New Notice</h2>
-            <input
-              placeholder="Notice Title"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <textarea
-              placeholder="Notice Content..."
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              rows={4}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
-
-            {/* File upload */}
-            <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
-              ${imageUrl
-                ? 'border-indigo-400 bg-indigo-50'
-                : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}>
-              <span className="text-2xl">
-                {uploadedFileType === 'application/pdf' ? '📄'
-                  : imageUrl ? '🖼️'
-                  : uploadingImage ? '⏳' : '📎'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-700">
-                  {imageUrl
-                    ? uploadedFileType === 'application/pdf' ? 'PDF attached!' : 'Image attached!'
-                    : uploadingImage ? 'Uploading...' : 'Attach file (optional)'}
-                </p>
-                <p className="text-xs text-gray-400 truncate">
-                  {imageUrl ? uploadedFileName : 'JPG, PNG, WEBP, PDF up to 5MB'}
-                </p>
-              </div>
-              {imageUrl && (
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.preventDefault();
-                    setImageUrl('');
-                    setUploadedFileName('');
-                    setUploadedFileType('');
-                  }}
-                  className="text-xs text-red-400 hover:text-red-600 font-medium"
-                >
-                  Remove
-                </button>
-              )}
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.pdf"
-                className="hidden"
-                onChange={e => handleImageUpload(e.target.files[0])}
-              />
-            </label>
-
-            {/* Preview — image only, PDF shows icon */}
-            {imageUrl && uploadedFileType !== 'application/pdf' && (
-              <img
-                src={imageUrl}
-                alt="preview"
-                className="w-full max-h-48 object-cover rounded-xl border border-gray-200"
-              />
+          <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
+            ${imageUrl ? 'border-indigo-400 bg-indigo-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
+            <Icon name={uploadedFileType === 'application/pdf' ? 'fileText' : imageUrl ? 'image' : uploadingImage ? 'loader' : 'paperclip'}
+              size={20} className={`text-indigo-500 flex-shrink-0 ${uploadingImage ? 'animate-spin' : ''}`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-700">
+                {imageUrl ? (uploadedFileType === 'application/pdf' ? 'PDF attached!' : 'Image attached!') : uploadingImage ? 'Uploading...' : 'Attach file (optional)'}
+              </p>
+              <p className="text-xs text-slate-400 truncate">{imageUrl ? uploadedFileName : 'JPG, PNG, WEBP, PDF up to 5MB'}</p>
+            </div>
+            {imageUrl && (
+              <button type="button" onClick={e => { e.preventDefault(); setImageUrl(''); setUploadedFileName(''); setUploadedFileType(''); }}
+                className="text-xs text-rose-400 hover:text-rose-600 font-medium flex-shrink-0">Remove</button>
             )}
-            {imageUrl && uploadedFileType === 'application/pdf' && (
-              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <span className="text-3xl">📄</span>
-                <div>
-                  <p className="text-sm font-semibold text-red-700">{uploadedFileName}</p>
-                  <a href={imageUrl} target="_blank" rel="noreferrer"
-                    className="text-xs text-indigo-500 hover:underline">
-                    Preview PDF ↗
-                  </a>
-                </div>
+            <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" className="hidden" onChange={e => handleImageUpload(e.target.files[0])} />
+          </label>
+
+          {imageUrl && uploadedFileType !== 'application/pdf' && (
+            <img src={imageUrl} alt="preview" className="w-full max-h-48 object-cover rounded-xl border border-slate-200" />
+          )}
+          {imageUrl && uploadedFileType === 'application/pdf' && (
+            <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+              <Icon name="fileText" size={26} className="text-rose-500" />
+              <div>
+                <p className="text-sm font-semibold text-rose-700">{uploadedFileName}</p>
+                <a href={imageUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline">Preview PDF ↗</a>
               </div>
-            )}
+            </div>
+          )}
 
-            <button
-              onClick={handlePost}
-              disabled={loading || uploadingImage}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition disabled:opacity-50"
-            >
-              {loading ? 'Posting...' : '📌 Post Notice'}
-            </button>
-          </div>
-        )}
+          <Button onClick={handlePost} loading={loading || uploadingImage} icon="megaphone">Post Notice</Button>
+        </Card>
+      )}
 
-        {/* Notice List */}
-        {notices.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">📋</p>
-            <p>No notices posted yet</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {notices.map(n => (
-              <div
-                key={n.id}
-                onClick={() => navigate(`/notices/${n.id}`)}
-                className="bg-white rounded-2xl border-l-4 border-indigo-500 border border-gray-200 p-5 cursor-pointer hover:shadow-md hover:border-indigo-300 transition"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-gray-800 text-base">📌 {n.title}</h3>
-                      {n.imageUrl && (
-                        <span className="text-xs bg-indigo-100 text-indigo-600 font-semibold px-2 py-0.5 rounded-full">
-                          {n.imageUrl.endsWith('.pdf') ? '📄 PDF' : '🖼️ Image'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">
-                      {n.content}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Posted by <span className="font-semibold text-gray-600">{n.postedByName}</span>
-                      {' '}({n.postedByRole}) ·{' '}
-                      {new Date(n.createdAt).toLocaleDateString('en-IN', {
-                        day: 'numeric', month: 'long', year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* ✅ Image thumbnail or PDF icon */}
+      {noticesLoading ? (
+        <SkeletonList count={3} />
+      ) : notices.length === 0 ? (
+        <EmptyState icon="megaphone" title="No notices posted yet" />
+      ) : (
+        <div className="space-y-4">
+          {notices.map(n => (
+            <div key={n.id} onClick={() => navigate(`/notices/${n.id}`)}
+              className="bg-white rounded-2xl border-l-4 border-indigo-500 ring-1 ring-slate-200/80 p-5 cursor-pointer hover:shadow-md hover:ring-indigo-200 transition">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-slate-800 text-base flex items-center gap-1.5">
+                      <Icon name="pin" size={14} className="text-indigo-400" /> {n.title}
+                    </h3>
                     {n.imageUrl && (
-                      n.imageUrl.endsWith('.pdf') ? (
-                        <div className="w-14 h-14 rounded-lg border border-red-200 bg-red-50 flex items-center justify-center">
-                          <span className="text-2xl">📄</span>
-                        </div>
-                      ) : (
-                        <img
-                          src={n.imageUrl}
-                          alt="notice"
-                          className="w-14 h-14 rounded-lg object-cover border border-gray-200"
-                          onClick={e => e.stopPropagation()}
-                        />
-                      )
-                    )}
-                    {canPost && (
-                      <button
-                        onClick={e => handleDelete(e, n.id)}
-                        className="text-gray-300 hover:text-red-500 transition text-lg"
-                      >
-                        🗑️
-                      </button>
+                      <Badge tone="indigo" icon={n.imageUrl.endsWith('.pdf') ? 'fileText' : 'image'}>
+                        {n.imageUrl.endsWith('.pdf') ? 'PDF' : 'Image'}
+                      </Badge>
                     )}
                   </div>
+                  <p className="text-sm text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{n.content}</p>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Posted by <span className="font-semibold text-slate-600">{n.postedByName}</span> ({n.postedByRole}) · {formatDate(n.createdAt)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {n.imageUrl && (
+                    n.imageUrl.endsWith('.pdf') ? (
+                      <div className="w-14 h-14 rounded-lg border border-rose-200 bg-rose-50 flex items-center justify-center">
+                        <Icon name="fileText" size={22} className="text-rose-400" />
+                      </div>
+                    ) : (
+                      <img src={n.imageUrl} alt="notice" className="w-14 h-14 rounded-lg object-cover border border-slate-200" onClick={e => e.stopPropagation()} />
+                    )
+                  )}
+                  {canPost && (
+                    <button onClick={e => handleDelete(e, n.id)} className="text-slate-300 hover:text-rose-500 transition p-1">
+                      <Icon name="trash" size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Developed by Ayush Kumar | ECE 2027 Batch
-        </p>
-      </div>
-    </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 };
 

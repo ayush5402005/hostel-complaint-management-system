@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import AppShell from '../layouts/AppShell';
+import { ROLE_META } from '../utils/statusMeta';
+import { Card, Icon, Badge, Button, Spinner } from '../components/ui';
 
 const NoticeDetailPage = () => {
   const { id }        = useParams();
@@ -16,20 +18,19 @@ const NoticeDetailPage = () => {
 
   const canPost = ['ADMIN', 'WARDEN', 'CARETAKER'].includes(user?.role);
 
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await api.get(`/notices/${id}`);
-        setNotice(res.data);
-      } catch {
-        showToast('Failed to load notice', 'error');
-        navigate('/notices');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
-  }, [id]);
+  const fetchNotice = useCallback(async () => {
+    try {
+      const res = await api.get(`/notices/${id}`);
+      setNotice(res.data);
+    } catch {
+      showToast('Failed to load notice', 'error');
+      navigate('/notices');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, showToast, navigate]);
+
+  useEffect(() => { fetchNotice(); }, [fetchNotice]);
 
   const handleDelete = async () => {
     if (!window.confirm('Delete this notice?')) return;
@@ -43,83 +44,42 @@ const NoticeDetailPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <AppShell>
+      <button onClick={() => navigate('/notices')}
+        className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium mb-6 transition">
+        <Icon name="arrowLeft" size={15} /> Back to Notice Board
+      </button>
 
-        {/* Back button */}
-        <button
-          onClick={() => navigate('/notices')}
-          className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-6 transition"
-        >
-          ← Back to Notice Board
-        </button>
+      {loading ? <Spinner full /> : notice ? (
+        <Card padded={false} className="overflow-hidden max-w-2xl">
+          {notice.imageUrl && (
+            <img src={notice.imageUrl} alt="notice" className="w-full max-h-72 object-cover" />
+          )}
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : notice ? (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-
-            {/* ✅ Notice image — full width at top */}
-            {notice.imageUrl && (
-              <img
-                src={notice.imageUrl}
-                alt="notice"
-                className="w-full max-h-72 object-cover"
-              />
-            )}
-
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <h1 className="text-xl font-bold text-gray-800">📌 {notice.title}</h1>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Posted by{' '}
-                    <span className="font-semibold text-gray-600">{notice.postedByName}</span>
-                    {' '}·{' '}
-                    <span className={`font-medium px-1.5 py-0.5 rounded text-xs
-                      ${notice.postedByRole === 'ADMIN'     ? 'bg-red-100 text-red-700' :
-                        notice.postedByRole === 'WARDEN'    ? 'bg-purple-100 text-purple-700' :
-                        notice.postedByRole === 'CARETAKER' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-600'}`}>
-                      {notice.postedByRole}
-                    </span>
-                    {' '}·{' '}
-                    {new Date(notice.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric', month: 'long', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                {canPost && (
-                  <button
-                    onClick={handleDelete}
-                    className="text-sm bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition font-medium flex-shrink-0"
-                  >
-                    🗑️ Delete
-                  </button>
-                )}
+          <div className="p-6">
+            <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Icon name="pin" size={16} className="text-indigo-400 flex-shrink-0" /> {notice.title}
+                </h1>
+                <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1.5 flex-wrap">
+                  Posted by <span className="font-semibold text-slate-600">{notice.postedByName}</span>
+                  <Badge className={ROLE_META[notice.postedByRole]?.badge}>{ROLE_META[notice.postedByRole]?.label || notice.postedByRole}</Badge>
+                  · {new Date(notice.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
-
-              {/* Divider */}
-              <hr className="border-gray-100 mb-4" />
-
-              {/* Content */}
-              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-                {notice.content}
-              </p>
+              {canPost && (
+                <Button variant="danger" size="sm" icon="trash" onClick={handleDelete} className="flex-shrink-0">Delete</Button>
+              )}
             </div>
-          </div>
-        ) : null}
 
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Developed by Ayush Kumar | ECE 2027 Batch
-        </p>
-      </div>
-    </div>
+            <hr className="border-slate-100 mb-4" />
+
+            <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap break-words">{notice.content}</p>
+          </div>
+        </Card>
+      ) : null}
+    </AppShell>
   );
 };
 

@@ -1,32 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import Navbar from '../../components/Navbar';
 import api from '../../api/axios';
 import { useToast } from '../../context/ToastContext';
+import AppShell from '../../layouts/AppShell';
+import { PageHeader, Card, Input, Select, Button, Icon, Badge, Avatar, EmptyState, Spinner, SkeletonList, Modal } from '../../components/ui';
+import { ROLE_META } from '../../utils/statusMeta';
 
 const ROLES = ['', 'ADMIN', 'WARDEN', 'CARETAKER', 'WORKER', 'STUDENT'];
 
-const roleColors = {
-  ADMIN:         'bg-red-100 text-red-700',
-  WARDEN:        'bg-purple-100 text-purple-700',
-  CARETAKER:     'bg-blue-100 text-blue-700',
-  WORKER:        'bg-green-100 text-green-700',
-  STUDENT:       'bg-indigo-100 text-indigo-700',
-  MESS_CONVENOR: 'bg-yellow-100 text-yellow-700',
-};
-
 const StarDisplay = ({ rating }) => {
-  if (!rating) return <span className="text-xs text-gray-400">No ratings</span>;
+  if (!rating) return <span className="text-xs text-slate-400">No ratings</span>;
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(star => (
-        <span key={star}
-          className={`text-sm ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-200'}`}>
-          ★
-        </span>
+        <Icon key={star} name="starFilled" size={13} className={star <= Math.round(rating) ? 'text-amber-400' : 'text-slate-200'} />
       ))}
-      <span className="text-xs font-semibold text-gray-600 ml-1">{rating}/5</span>
+      <span className="text-xs font-semibold text-slate-600 ml-1">{rating}/5</span>
     </div>
   );
 };
@@ -35,7 +25,7 @@ const UserManagement = () => {
   const { user }        = useAuth();
   const { showToast }   = useToast();
   const navigate        = useNavigate();
-  const [searchParams]  = useSearchParams(); // ✅ Read ?role=WORKER from URL
+  const [searchParams]  = useSearchParams();
 
   const [users, setUsers]                   = useState([]);
   const [loading, setLoading]               = useState(true);
@@ -47,19 +37,15 @@ const UserManagement = () => {
   const [editForm, setEditForm]             = useState({});
   const [editLoading, setEditLoading]       = useState(false);
 
-  // ✅ Default filter: URL param → CARETAKER default → empty
   const [roleFilter, setRoleFilter] = useState(
-    searchParams.get('role') ||
-    (user.role === 'CARETAKER' ? 'WORKER' : '')
+    searchParams.get('role') || (user.role === 'CARETAKER' ? 'WORKER' : '')
   );
 
   const canCreate = ['ADMIN', 'WARDEN', 'CARETAKER'].includes(user.role);
   const canEdit   = ['ADMIN', 'WARDEN'].includes(user.role);
-
-  // ✅ CARETAKER can only see workers — lock their filter
   const isFilterLocked = user.role === 'CARETAKER';
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const url = roleFilter ? `/admin/users/role/${roleFilter}` : '/admin/users';
@@ -70,34 +56,25 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [roleFilter, showToast]);
 
-  const fetchWorkerRatings = async (userList) => {
+  const fetchWorkerRatings = useCallback(async (userList) => {
     const workers = userList.filter(u => u.role === 'WORKER');
     if (workers.length === 0) return;
     setRatingsLoading(true);
     try {
-      const results = await Promise.allSettled(
-        workers.map(w => api.get(`/admin/workers/${w.id}/stats`))
-      );
+      const results = await Promise.allSettled(workers.map(w => api.get(`/admin/workers/${w.id}/stats`)));
       const statsMap = {};
       results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          statsMap[workers[index].id] = result.value.data;
-        }
+        if (result.status === 'fulfilled') statsMap[workers[index].id] = result.value.data;
       });
       setWorkerStats(statsMap);
-    } catch {}
-    finally {
-      setRatingsLoading(false);
-    }
-  };
+    } catch { /* Promise.allSettled already isolates per-worker failures */ }
+    finally { setRatingsLoading(false); }
+  }, []);
 
-  useEffect(() => { fetchUsers(); }, [roleFilter]);
-
-  useEffect(() => {
-    if (users.length > 0) fetchWorkerRatings(users);
-  }, [users]);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { if (users.length > 0) fetchWorkerRatings(users); }, [users, fetchWorkerRatings]);
 
   const handleDeactivate = async (userId) => {
     setActionLoading(userId);
@@ -107,9 +84,7 @@ const UserManagement = () => {
       fetchUsers();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to deactivate', 'error');
-    } finally {
-      setActionLoading(null);
-    }
+    } finally { setActionLoading(null); }
   };
 
   const handleActivate = async (userId) => {
@@ -120,20 +95,15 @@ const UserManagement = () => {
       fetchUsers();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to activate', 'error');
-    } finally {
-      setActionLoading(null);
-    }
+    } finally { setActionLoading(null); }
   };
 
   const handleEditOpen = (u) => {
     setEditUser(u);
-    setEditForm({
-      name:        u.name,
-      phoneNumber: u.phoneNumber,
-      department:  u.department || '',
-      hostelBlock: u.hostelBlock || '',
-      roomNumber:  u.roomNumber || '',
-    });
+    // Only name/phoneNumber/roomNumber are actually persisted by PUT
+    // /admin/users/:id (see admin.service.js#updateUser) — department and
+    // block were never editable here, in the original Java app either.
+    setEditForm({ name: u.name, phoneNumber: u.phoneNumber, roomNumber: u.roomNumber || '' });
   };
 
   const handleEditSave = async () => {
@@ -145,9 +115,7 @@ const UserManagement = () => {
       fetchUsers();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to update', 'error');
-    } finally {
-      setEditLoading(false);
-    }
+    } finally { setEditLoading(false); }
   };
 
   const filtered = users.filter(u =>
@@ -156,223 +124,127 @@ const UserManagement = () => {
     u.phoneNumber?.includes(search)
   );
 
-  const showRatingCol = roleFilter === 'WORKER' ||
-    (!roleFilter && filtered.some(u => u.role === 'WORKER'));
-
-  const tableHeaders = ['#', 'Name', 'Email', 'Role', 'Phone', 'Details',
-    ...(showRatingCol ? ['Rating'] : []),
-    'Status', 'Actions'];
+  const showRatingCol = roleFilter === 'WORKER' || (!roleFilter && filtered.some(u => u.role === 'WORKER'));
+  const tableHeaders = ['Name', 'Email', 'Role', 'Phone', 'Details', ...(showRatingCol ? ['Rating'] : []), 'Status', 'Actions'];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-
-      {/* Edit Modal */}
-      {editUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              Edit User — {editUser.name}
-            </h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Name',         key: 'name' },
-                { label: 'Phone Number', key: 'phoneNumber' },
-                { label: 'Department',   key: 'department' },
-                { label: 'Hostel Block', key: 'hostelBlock' },
-                { label: 'Room Number',  key: 'roomNumber' },
-              ].map(({ label, key }) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500 font-medium">{label}</label>
-                  <input type="text"
-                    value={editForm[key] || ''}
-                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setEditUser(null)}
-                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition">
-                Cancel
-              </button>
-              <button onClick={handleEditSave} disabled={editLoading}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50">
-                {editLoading ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
+    <AppShell wide>
+      <Modal open={!!editUser} onClose={() => setEditUser(null)} icon="edit" title={editUser ? `Edit User — ${editUser.name}` : ''}>
+        <div className="space-y-3">
+          {[
+            { label: 'Name', key: 'name' },
+            { label: 'Phone Number', key: 'phoneNumber' },
+            { label: 'Room Number', key: 'roomNumber' },
+          ].map(({ label, key }) => (
+            <Input key={key} label={label} value={editForm[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} />
+          ))}
         </div>
-      )}
+        <div className="flex gap-2 mt-5">
+          <Button variant="secondary" className="flex-1" onClick={() => setEditUser(null)}>Cancel</Button>
+          <Button className="flex-1" onClick={handleEditSave} loading={editLoading} icon="checkCircle">Save Changes</Button>
+        </div>
+      </Modal>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <PageHeader
+        title={isFilterLocked ? 'Workers' : 'User Management'}
+        subtitle={`${filtered.length} ${isFilterLocked ? 'worker' : 'user'}${filtered.length !== 1 ? 's' : ''} found`}
+        action={canCreate && <Button icon="plus" onClick={() => navigate('/admin/users/new')}>Add User</Button>}
+      />
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div>
-            {/* ✅ Title changes based on role */}
-            <h1 className="text-2xl font-bold text-gray-800">
-              {isFilterLocked ? '👷 Workers' : 'User Management'}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {filtered.length} {isFilterLocked ? 'worker' : 'user'}{filtered.length !== 1 ? 's' : ''} found
-            </p>
-          </div>
-          {canCreate && (
-            <button onClick={() => navigate('/admin/users/new')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-              + Add User
-            </button>
-          )}
+      <div className="flex gap-3 mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Icon name="search" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text" placeholder="Search by name, email or phone..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500" />
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-3 mb-6 flex-wrap">
-          <input type="text"
-            placeholder="🔍 Search by name, email or phone..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-
-          {/* ✅ CARETAKER sees locked badge, others see dropdown */}
-          {isFilterLocked ? (
-            <div className="flex items-center gap-2 border border-green-200 bg-green-50 rounded-lg px-4 py-2">
-              <span className="text-xs font-semibold text-green-700">👷 Workers Only</span>
-            </div>
-          ) : (
-            <select value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              {ROLES.map(r => (
-                <option key={r} value={r}>{r || 'All Roles'}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Table */}
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">👤</p>
-            <p className="text-lg font-medium">No users found</p>
+        {isFilterLocked ? (
+          <div className="flex items-center gap-2 ring-1 ring-emerald-200 bg-emerald-50 rounded-lg px-4 py-2">
+            <Icon name="hardhat" size={14} className="text-emerald-600" />
+            <span className="text-xs font-semibold text-emerald-700">Workers Only</span>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    {tableHeaders.map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filtered.map(u => (
-                    <tr key={u.id}
-                      className={`hover:bg-gray-50 transition ${!u.active ? 'opacity-50' : ''}`}>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{u.id}</td>
-
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold text-sm flex items-center justify-center flex-shrink-0">
-                            {u.name?.[0]?.toUpperCase()}
-                          </div>
-                          <span className="font-medium text-gray-800">{u.name}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3 text-gray-500">{u.email}</td>
-
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${roleColors[u.role] || 'bg-gray-100 text-gray-600'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3 text-gray-500">{u.phoneNumber}</td>
-
-                      <td className="px-4 py-3 text-gray-400 text-xs">
-                        {u.role === 'STUDENT'
-                          ? `Block ${u.hostelBlock} / Room ${u.roomNumber}`
-                          : u.department || '—'}
-                      </td>
-
-                      {/* Rating column */}
-                      {showRatingCol && (
-                        <td className="px-4 py-3">
-                          {u.role === 'WORKER' ? (
-                            ratingsLoading ? (
-                              <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <div>
-                                <StarDisplay rating={workerStats[u.id]?.averageRating} />
-                                {workerStats[u.id] && (
-                                  <p className="text-xs text-gray-400 mt-0.5">
-                                    {workerStats[u.id].closed} job{workerStats[u.id].closed !== 1 ? 's' : ''} closed
-                                  </p>
-                                )}
-                              </div>
-                            )
-                          ) : (
-                            <span className="text-gray-300">—</span>
-                          )}
-                        </td>
-                      )}
-
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full
-                          ${u.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {u.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          {canEdit && (
-                            <button onClick={() => handleEditOpen(u)}
-                              className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg transition">
-                              ✏️ Edit
-                            </button>
-                          )}
-                          {canEdit && (
-                            u.active ? (
-                              <button onClick={() => handleDeactivate(u.id)}
-                                disabled={actionLoading === u.id}
-                                className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1 rounded-lg transition disabled:opacity-50">
-                                {actionLoading === u.id ? '...' : '🚫 Deactivate'}
-                              </button>
-                            ) : (
-                              <button onClick={() => handleActivate(u.id)}
-                                disabled={actionLoading === u.id}
-                                className="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-3 py-1 rounded-lg transition disabled:opacity-50">
-                                {actionLoading === u.id ? '...' : '✅ Activate'}
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <Select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="w-44">
+            {ROLES.map(r => <option key={r} value={r}>{r ? ROLE_META[r]?.label : 'All Roles'}</option>)}
+          </Select>
         )}
-
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Developed by Ayush Kumar | ECE 2027 Batch
-        </p>
       </div>
-    </div>
+
+      {loading ? <SkeletonList count={5} /> : filtered.length === 0 ? (
+        <EmptyState icon="users" title="No users found" />
+      ) : (
+        <Card padded={false} className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {tableHeaders.map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(u => (
+                  <tr key={u.id} className={`hover:bg-slate-50 transition ${!u.active ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={u.name} size="sm" />
+                        <span className="font-medium text-slate-800 whitespace-nowrap">{u.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{u.email}</td>
+                    <td className="px-4 py-3"><Badge className={ROLE_META[u.role]?.badge}>{ROLE_META[u.role]?.label || u.role}</Badge></td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{u.phoneNumber}</td>
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                      {u.role === 'STUDENT' ? `Block ${u.hostelBlock} / Room ${u.roomNumber}` : u.department || '—'}
+                    </td>
+                    {showRatingCol && (
+                      <td className="px-4 py-3">
+                        {u.role === 'WORKER' ? (
+                          ratingsLoading ? <Spinner size={16} /> : (
+                            <div>
+                              <StarDisplay rating={workerStats[u.id]?.averageRating} />
+                              {workerStats[u.id] && (
+                                <p className="text-xs text-slate-400 mt-0.5">{workerStats[u.id].closed} job{workerStats[u.id].closed !== 1 ? 's' : ''} closed</p>
+                              )}
+                            </div>
+                          )
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                    )}
+                    <td className="px-4 py-3">
+                      <Badge tone={u.active ? 'emerald' : 'neutral'}>{u.active ? 'Active' : 'Inactive'}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        {canEdit && (
+                          <button onClick={() => handleEditOpen(u)} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg transition font-medium whitespace-nowrap">
+                            Edit
+                          </button>
+                        )}
+                        {canEdit && (
+                          u.active ? (
+                            <button onClick={() => handleDeactivate(u.id)} disabled={actionLoading === u.id}
+                              className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg transition disabled:opacity-50 font-medium whitespace-nowrap">
+                              {actionLoading === u.id ? '...' : 'Deactivate'}
+                            </button>
+                          ) : (
+                            <button onClick={() => handleActivate(u.id)} disabled={actionLoading === u.id}
+                              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-1 rounded-lg transition disabled:opacity-50 font-medium whitespace-nowrap">
+                              {actionLoading === u.id ? '...' : 'Activate'}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </AppShell>
   );
 };
 

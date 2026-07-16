@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import AuthLayout, { AuthAlert } from '../layouts/AuthLayout';
+import { Input, Select, Badge, Button } from '../components/ui';
 
-const HOSTEL_ID = 14; // update after DB insert
-const BLOCKS = [
-  { id: 27, name: '10A' }, // update after DB insert
-  { id: 28, name: '10B' },
-];
+// This app serves Hostel 10 only — block is a fixed A/B choice, not a
+// hostel/block lookup anymore. See backend/docs/MIGRATION_NOTES.md
+// "Hostel-10 scoping".
+const BLOCKS = ['A', 'B'];
 
 const Register = () => {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ const Register = () => {
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
     phoneNumber: '', scholarNumber: '',
-    blockId: '', roomNumber: '',
+    block: '', roomNumber: '',
   });
 
   const [error, setError]     = useState('');
@@ -36,7 +37,7 @@ const Register = () => {
       setError('Password must be at least 6 characters.');
       return;
     }
-    if (!form.blockId) {
+    if (!form.block) {
       setError('Please select your block.');
       return;
     }
@@ -53,8 +54,7 @@ const Register = () => {
         password:      form.password,
         phoneNumber:   form.phoneNumber,
         scholarNumber: form.scholarNumber,
-        hostelId:      HOSTEL_ID,
-        blockId:       Number(form.blockId),
+        block:         form.block,
         roomNumber:    form.roomNumber,
         role:          'STUDENT',
       });
@@ -67,147 +67,85 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg p-8">
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🏠</div>
-          <h1 className="text-2xl font-bold text-gray-800">Create Account</h1>
-          <p className="text-gray-500 text-sm mt-1">Student registration — Hostel 10, MANIT</p>
+    <AuthLayout title="Create your account" subtitle="Student registration — Hostel 10, MANIT" wide>
+      {error && <AuthAlert>{error}</AuthAlert>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Full Name" required value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            placeholder="John Doe"
+          />
+          <Input
+            label="College Email" type="email" required value={form.email}
+            hint="@stu.manit.ac.in"
+            placeholder="yourname@stu.manit.ac.in"
+            onChange={e => setForm({ ...form, email: e.target.value })}
+          />
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
-            {error}
-          </div>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Password" type="password" required value={form.password}
+            onChange={e => setForm({ ...form, password: e.target.value })}
+            placeholder="Min 6 characters"
+          />
+          <Input
+            label="Confirm Password" type="password" required value={form.confirmPassword}
+            onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+            placeholder="Re-enter password"
+            error={form.confirmPassword && form.password !== form.confirmPassword ? "Passwords don't match" : null}
+          />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Phone Number" type="tel" required value={form.phoneNumber}
+          onChange={e => setForm({ ...form, phoneNumber: e.target.value })}
+          placeholder="10-digit mobile number"
+        />
 
-          {/* Name + Email */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              <input type="text" required value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="John Doe"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">College Email</label>
-              <input type="email" required value={form.email}
-                placeholder="yourname@stu.manit.ac.in"
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">Must be @stu.manit.ac.in</p>
-            </div>
+        <div className="border border-indigo-100 bg-indigo-50/60 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Student Details</p>
+            <Badge tone="indigo" icon="building">Hostel 10</Badge>
           </div>
 
-          {/* Password + Confirm Password */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input type="password" required value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Min 6 characters"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-              <input type="password" required value={form.confirmPassword}
-                onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
-                placeholder="Re-enter password"
-                className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500
-                  ${form.confirmPassword && form.password !== form.confirmPassword
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-300'}`}
-              />
-              {form.confirmPassword && form.password !== form.confirmPassword && (
-                <p className="text-xs text-red-500 mt-1">Passwords don't match</p>
-              )}
-            </div>
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-            <input type="tel" required value={form.phoneNumber}
-              onChange={e => setForm({ ...form, phoneNumber: e.target.value })}
-              placeholder="10-digit mobile number"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="Scholar No." required value={form.scholarNumber}
+              onChange={e => setForm({ ...form, scholarNumber: e.target.value })}
+              placeholder="2311601XXX"
+            />
+            <Select
+              label="Block" required value={form.block}
+              onChange={e => setForm({ ...form, block: e.target.value })}
+            >
+              <option value="">Select</option>
+              {BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
+            </Select>
+            <Input
+              label="Room No." hint="3 digits" required value={form.roomNumber}
+              onChange={e => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 3);
+                setForm({ ...form, roomNumber: val });
+              }}
+              placeholder="309" maxLength={3}
+              error={form.roomNumber && form.roomNumber.length < 3 ? 'Must be 3 digits' : null}
             />
           </div>
+        </div>
 
-          {/* Student Details */}
-          <div className="border border-blue-100 bg-blue-50 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-blue-600 uppercase">Student Details</p>
-              <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                🏠 Hostel 10
-              </span>
-            </div>
+        <Button type="submit" loading={loading} className="w-full" size="lg">
+          Create Account
+        </Button>
+      </form>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Scholar No.</label>
-                <input type="text" required value={form.scholarNumber}
-                  onChange={e => setForm({ ...form, scholarNumber: e.target.value })}
-                  placeholder="2311601XXX"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Block</label>
-                <select required value={form.blockId}
-                  onChange={e => setForm({ ...form, blockId: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                  <option value="">Select</option>
-                  {BLOCKS.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Room No. <span className="text-gray-400">(3 digits)</span>
-                </label>
-                <input
-                  type="text" required value={form.roomNumber}
-                  onChange={e => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 3);
-                    setForm({ ...form, roomNumber: val });
-                  }}
-                  placeholder="309"
-                  maxLength={3}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500
-                    ${form.roomNumber && form.roomNumber.length < 3
-                      ? 'border-red-300 bg-red-50'
-                      : 'border-gray-300'}`}
-                />
-                {form.roomNumber && form.roomNumber.length < 3 && (
-                  <p className="text-xs text-red-500 mt-0.5">Must be 3 digits</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-50"
-          >
-            {loading ? 'Creating account...' : 'Create Account'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-gray-500 mt-4">
-          Already have an account?{' '}
-          <Link to="/login" className="text-indigo-600 hover:underline font-medium">Login</Link>
-        </p>
-      </div>
-    </div>
+      <p className="text-center text-sm text-slate-500 mt-6">
+        Already have an account?{' '}
+        <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-semibold">Login</Link>
+      </p>
+    </AuthLayout>
   );
 };
 

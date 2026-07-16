@@ -1,19 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/axios';
-import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { Icon, Avatar, Badge, CardHeader } from './ui';
+import { ROLE_META } from '../utils/statusMeta';
 
-const roleColors = {
-  STUDENT:   'bg-blue-100 text-blue-700',
-  WORKER:    'bg-green-100 text-green-700',
-  CARETAKER: 'bg-yellow-100 text-yellow-700',
-  WARDEN:    'bg-purple-100 text-purple-700',
-  ADMIN:     'bg-red-100 text-red-700',
-};
-
-// ✅ Accept complaintStatus prop
 const CommentSection = ({ complaintId, complaintStatus }) => {
-  const { user }      = useAuth();
   const { showToast } = useToast();
 
   const [comments, setComments] = useState([]);
@@ -21,21 +12,20 @@ const CommentSection = ({ complaintId, complaintStatus }) => {
   const [loading, setLoading]   = useState(false);
   const bottomRef               = useRef();
 
-  // ✅ Disable input when complaint is closed or rejected
   const isClosed = ['CLOSED', 'REJECTED'].includes(complaintStatus);
 
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const res = await api.get(`/complaints/${complaintId}/comments`);
       setComments(res.data);
-    } catch {}
-  };
+    } catch { /* silent — periodic poll, next tick will retry */ }
+  }, [complaintId]);
 
   useEffect(() => {
     fetchComments();
     const interval = setInterval(fetchComments, 30000);
     return () => clearInterval(interval);
-  }, [complaintId]);
+  }, [fetchComments]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,41 +46,27 @@ const CommentSection = ({ complaintId, complaintStatus }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase">
-          💬 Discussion ({comments.length})
-        </h2>
+    <div className="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100">
+        <CardHeader title={`Discussion (${comments.length})`} icon={<Icon name="send" size={14} className="text-slate-400" />} />
       </div>
 
-      {/* Messages */}
       <div className="px-6 py-4 space-y-4 max-h-80 overflow-y-auto">
         {comments.length === 0 ? (
-          <p className="text-center text-gray-400 text-sm py-6">
-            No messages yet. Start the conversation!
-          </p>
+          <p className="text-center text-slate-400 text-sm py-6">No messages yet. Start the conversation!</p>
         ) : (
           comments.map(c => (
             <div key={c.id} className="flex gap-3 items-start">
-              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                {c.userName?.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1">
+              <Avatar name={c.userName} size="sm" />
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-sm font-semibold text-gray-800">{c.userName}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[c.userRole] || 'bg-gray-100 text-gray-600'}`}>
-                    {c.userRole}
-                  </span>
-                  <span className="text-xs text-gray-400 ml-auto">
-                    {new Date(c.createdAt).toLocaleString('en-IN', {
-                      day: 'numeric', month: 'short',
-                      hour: '2-digit', minute: '2-digit'
-                    })}
+                  <span className="text-sm font-semibold text-slate-800">{c.userName}</span>
+                  <Badge className={ROLE_META[c.userRole]?.badge}>{ROLE_META[c.userRole]?.label || c.userRole}</Badge>
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {new Date(c.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-4 py-2 leading-relaxed">
-                  {c.message}
-                </p>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-2 leading-relaxed break-words">{c.message}</p>
               </div>
             </div>
           ))
@@ -98,20 +74,17 @@ const CommentSection = ({ complaintId, complaintStatus }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* ✅ Input — disabled + banner when CLOSED or REJECTED */}
       {isClosed ? (
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
-          <span className="text-lg">
-            {complaintStatus === 'CLOSED' ? '🔒' : '❌'}
-          </span>
-          <p className="text-sm text-gray-400 font-medium">
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center gap-2">
+          <Icon name={complaintStatus === 'CLOSED' ? 'lock' : 'xCircle'} size={16} className="text-slate-400" />
+          <p className="text-sm text-slate-400 font-medium">
             {complaintStatus === 'CLOSED'
               ? 'This complaint is closed. Discussion is locked.'
               : 'This complaint is rejected. Discussion is locked.'}
           </p>
         </div>
       ) : (
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
           <input
             type="text"
             placeholder="Type a message... (Enter to send)"
@@ -123,14 +96,14 @@ const CommentSection = ({ complaintId, complaintStatus }) => {
                 handleSend();
               }
             }}
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="flex-1 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
           />
           <button
             onClick={handleSend}
             disabled={loading || !message.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-40"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-40 inline-flex items-center gap-1.5"
           >
-            {loading ? '...' : 'Send'}
+            <Icon name="send" size={14} /> Send
           </button>
         </div>
       )}

@@ -1,43 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import CommentSection from '../components/CommentSection';
-
-const statusColors = {
-  CREATED:     'bg-gray-100 text-gray-700',
-  ASSIGNED:    'bg-blue-100 text-blue-700',
-  IN_PROGRESS: 'bg-yellow-100 text-yellow-700',
-  RESOLVED:    'bg-green-100 text-green-700',
-  CLOSED:      'bg-purple-100 text-purple-700',
-  REJECTED:    'bg-red-100 text-red-700',
-};
-
-const priorityColors = {
-  LOW:    'bg-green-100 text-green-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH:   'bg-red-100 text-red-700',
-};
+import AppShell from '../layouts/AppShell';
+import { mediaUrl } from '../utils/mediaUrl';
+import { STATUS_META, PRIORITY_META, ROLE_META, formatDateTime } from '../utils/statusMeta';
+import { Icon, Badge, Card, CardHeader, Button, Select, Textarea, Modal, Avatar, Spinner, EmptyState } from '../components/ui';
 
 const statusTimeline = ['CREATED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
-// ── ⭐ Star Rating Component ──────────────────────────────────────────────────
 const StarRating = ({ value, onChange, readonly = false }) => (
-  <div className="flex gap-1">
+  <div className="flex gap-1 justify-center">
     {[1, 2, 3, 4, 5].map(star => (
       <button key={star} type="button"
         onClick={() => !readonly && onChange && onChange(star)}
-        className={`text-2xl transition ${readonly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}
-          ${star <= value ? 'text-yellow-400' : 'text-gray-300'}`}>
-        ★
+        className={`transition ${readonly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}>
+        <Icon name="starFilled" size={26} className={star <= value ? 'text-amber-400' : 'text-slate-200'} />
       </button>
     ))}
   </div>
 );
 
-// ── 📋 Audit Log Timeline ─────────────────────────────────────────────────────
 const AuditTimeline = ({ complaintId }) => {
   const [logs, setLogs]       = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,84 +34,44 @@ const AuditTimeline = ({ complaintId }) => {
       .finally(() => setLoading(false));
   }, [complaintId]);
 
-  const roleColor = (role) => {
-    const map = {
-      STUDENT:   'bg-indigo-100 text-indigo-700',
-      WORKER:    'bg-green-100 text-green-700',
-      WARDEN:    'bg-purple-100 text-purple-700',
-      CARETAKER: 'bg-orange-100 text-orange-700',
-      ADMIN:     'bg-red-100 text-red-700',
-    };
-    return map[role] || 'bg-gray-100 text-gray-700';
-  };
-
-  const statusIcon = (toStatus) => {
-    const map = {
-      CREATED:     '📝',
-      ASSIGNED:    '👷',
-      IN_PROGRESS: '🔧',
-      RESOLVED:    '✅',
-      CLOSED:      '🔒',
-      REJECTED:    '❌',
-    };
-    return map[toStatus] || '📋';
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  };
-
-  if (loading) return (
-    <div className="flex justify-center py-4">
-      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
-  if (logs.length === 0) return (
-    <p className="text-sm text-gray-400 text-center py-3">No activity yet</p>
-  );
+  if (loading) return <Spinner />;
+  if (logs.length === 0) return <p className="text-sm text-slate-400 text-center py-3">No activity yet</p>;
 
   return (
     <div className="space-y-3">
-      {logs.map((log, index) => (
-        <div key={log.id} className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center text-sm flex-shrink-0">
-              {statusIcon(log.toStatus)}
+      {logs.map((log, index) => {
+        const meta = STATUS_META[log.toStatus] || {};
+        const roleMeta = ROLE_META[log.changedByRole] || {};
+        return (
+          <div key={log.id} className="flex gap-3">
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 rounded-full bg-indigo-50 ring-2 ring-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-500">
+                <Icon name={meta.icon || 'clipboard'} size={14} />
+              </div>
+              {index < logs.length - 1 && <div className="w-0.5 bg-slate-200 flex-1 mt-1 min-h-[20px]" />}
             </div>
-            {index < logs.length - 1 && (
-              <div className="w-0.5 bg-gray-200 flex-1 mt-1 min-h-[20px]" />
-            )}
-          </div>
-          <div className="pb-4 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-gray-800">{log.changedByName}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColor(log.changedByRole)}`}>
-                {log.changedByRole}
-              </span>
-              {log.fromStatus && (
-                <span className="text-xs text-gray-400">
-                  {log.fromStatus} → <span className="font-medium text-gray-600">{log.toStatus}</span>
-                </span>
-              )}
-              {!log.fromStatus && (
-                <span className="text-xs font-medium text-gray-600">{log.toStatus}</span>
-              )}
+            <div className="pb-4 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-slate-800">{log.changedByName}</span>
+                <Badge className={roleMeta.badge}>{roleMeta.label || log.changedByRole}</Badge>
+                {log.fromStatus ? (
+                  <span className="text-xs text-slate-400">
+                    {STATUS_META[log.fromStatus]?.label} → <span className="font-medium text-slate-600">{meta.label}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-slate-600">{meta.label}</span>
+                )}
+              </div>
+              {log.note && <p className="text-xs text-slate-500 mt-0.5">{log.note}</p>}
+              <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(log.changedAt)}</p>
             </div>
-            {log.note && <p className="text-xs text-gray-500 mt-0.5">{log.note}</p>}
-            <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.changedAt)}</p>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
 
-// ── Main Component ────────────────────────────────────────────────────────────
 const ComplaintDetail = () => {
   const { id }        = useParams();
   const { user }      = useAuth();
@@ -144,16 +89,14 @@ const ComplaintDetail = () => {
   const [showReassignBox, setShowReassignBox] = useState(false);
   const [reassignWorker, setReassignWorker]   = useState('');
 
-  // ✅ Worker — resolve with photo
   const [showResolveBox, setShowResolveBox]   = useState(false);
   const [resolvePhotoUrl, setResolvePhotoUrl] = useState(null);
   const [uploadingPhoto, setUploadingPhoto]   = useState(false);
 
-  // ✅ Student — close with rating modal
   const [showCloseModal, setShowCloseModal]   = useState(false);
   const [ratingValue, setRatingValue]         = useState(0);
 
-  const fetchComplaint = async () => {
+  const fetchComplaint = useCallback(async () => {
     try {
       const res = await api.get(`/complaints/${id}`);
       setComplaint(res.data);
@@ -162,17 +105,14 @@ const ComplaintDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchComplaint();
-    // ✅ Fixed endpoint
     if (['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role)) {
-      api.get('/admin/workers')
-        .then(res => setWorkers(res.data))
-        .catch(() => {});
+      api.get('/admin/workers').then(res => setWorkers(res.data)).catch(() => {});
     }
-  }, [id]);
+  }, [fetchComplaint, user.role]);
 
   const handleAssign = async () => {
     if (!selectedWorker) { showToast('Please select a worker', 'warning'); return; }
@@ -183,9 +123,7 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to assign', 'error');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
   const handleReassign = async () => {
@@ -199,9 +137,7 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to reassign', 'error');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
   const handleReject = async () => {
@@ -215,37 +151,29 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to reject', 'error');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
-  // ✅ Worker — upload proof photo
   const handlePhotoUpload = async (file) => {
     if (!file) return;
     setUploadingPhoto(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await api.post('/files/upload', formData);
       setResolvePhotoUrl(res.data.url);
       showToast('Photo uploaded!', 'success');
     } catch {
       showToast('Failed to upload photo', 'error');
-    } finally {
-      setUploadingPhoto(false);
-    }
+    } finally { setUploadingPhoto(false); }
   };
 
-  // ✅ Worker — mark resolved with optional photo
   const handleMarkResolved = async () => {
     setActionLoading(true);
     try {
       await api.put(`/complaints/${id}/status`, {
         status: 'RESOLVED',
-        resolvedPhotoUrl: resolvePhotoUrl || null,
+        resolvedMediaUrls: resolvePhotoUrl ? [resolvePhotoUrl] : [],
       });
       showToast('Complaint marked as resolved!', 'success');
       setShowResolveBox(false);
@@ -253,12 +181,9 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to resolve', 'error');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
-  // ✅ Student — close with rating
   const handleCloseWithRating = async () => {
     setActionLoading(true);
     try {
@@ -269,460 +194,329 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to close', 'error');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
+  const handleStartWork = async () => {
+    setActionLoading(true);
+    try {
+      await api.put(`/complaints/${id}/status`, { status: 'IN_PROGRESS' });
+      showToast('Status updated to IN PROGRESS', 'success');
+      fetchComplaint();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed', 'error');
+    } finally { setActionLoading(false); }
   };
 
   const currentStep = statusTimeline.indexOf(complaint?.status);
 
-  if (loading) return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="flex justify-center py-20">
-        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    </div>
-  );
+  if (loading) return <AppShell><Spinner full /></AppShell>;
 
   if (error || !complaint) return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center text-gray-400">
-        <p className="text-5xl mb-4">😕</p>
-        <p className="text-lg font-medium">{error || 'Complaint not found'}</p>
-        <button onClick={() => navigate('/complaints')}
-          className="mt-4 bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm">
-          ← Back to Complaints
-        </button>
-      </div>
-    </div>
+    <AppShell>
+      <EmptyState
+        icon="alertTriangle" title={error || 'Complaint not found'}
+        action={<Button icon="arrowLeft" onClick={() => navigate('/complaints')}>Back to Complaints</Button>}
+      />
+    </AppShell>
   );
 
   const isOpen = !['CLOSED', 'REJECTED'].includes(complaint.status);
+  const statusMeta = STATUS_META[complaint.status] || {};
+  const prioMeta = PRIORITY_META[complaint.priority] || {};
+  const preferredSlots = [1, 2, 3]
+    .map(n => ({ day: complaint[`slot${n}Day`], time: complaint[`slot${n}Time`] }))
+    .filter(s => s.day && s.time);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-
-      {/* ✅ Close + Rate Modal */}
-      {showCloseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="text-center mb-4">
-              <p className="text-3xl mb-2">⭐</p>
-              <h3 className="text-lg font-bold text-gray-800">Close & Rate</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                #{complaint.id} — {complaint.title}
-              </p>
-            </div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">
-              Rate the work done: <span className="text-gray-400">(optional)</span>
-            </p>
-            <div className="flex justify-center mb-2">
-              <StarRating value={ratingValue} onChange={setRatingValue} />
-            </div>
-            {ratingValue > 0 && (
-              <p className="text-xs text-yellow-600 text-center font-medium mb-4">
-                {ratingValue} star{ratingValue !== 1 ? 's' : ''} selected
-              </p>
-            )}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => { setShowCloseModal(false); setRatingValue(0); }}
-                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition">
-                Cancel
-              </button>
-              <button onClick={handleCloseWithRating} disabled={actionLoading}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-xl text-sm font-medium transition disabled:opacity-50">
-                {actionLoading ? 'Closing...' : '✓ Close Complaint'}
-              </button>
-            </div>
-          </div>
+    <AppShell>
+      <Modal
+        open={showCloseModal}
+        onClose={() => { setShowCloseModal(false); setRatingValue(0); }}
+        icon="starFilled"
+        title="Close & Rate"
+        subtitle={`#${complaint.id} — ${complaint.title}`}
+      >
+        <p className="text-sm font-semibold text-slate-700 mb-2 text-center">
+          Rate the work done <span className="text-slate-400 font-normal">(optional)</span>
+        </p>
+        <StarRating value={ratingValue} onChange={setRatingValue} />
+        {ratingValue > 0 && (
+          <p className="text-xs text-amber-600 text-center font-medium mt-2">{ratingValue} star{ratingValue !== 1 ? 's' : ''} selected</p>
+        )}
+        <div className="flex gap-2 mt-5">
+          <Button variant="secondary" className="flex-1" onClick={() => { setShowCloseModal(false); setRatingValue(0); }}>Cancel</Button>
+          <Button variant="accent" className="flex-1" onClick={handleCloseWithRating} loading={actionLoading} icon="lock">
+            Close Complaint
+          </Button>
         </div>
-      )}
+      </Modal>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <button onClick={() => navigate('/complaints')}
+        className="text-sm text-indigo-600 hover:text-indigo-700 mb-5 flex items-center gap-1.5 font-medium">
+        <Icon name="arrowLeft" size={15} /> Back to Complaints
+      </button>
 
-        {/* Back Button */}
-        <button onClick={() => navigate('/complaints')}
-          className="text-sm text-indigo-600 hover:underline mb-5 flex items-center gap-1">
-          ← Back to Complaints
-        </button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-5">
+          <Card>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs text-slate-400 font-medium mb-1">COMPLAINT #{complaint.id}</p>
+                <h1 className="text-xl font-bold text-slate-800">{complaint.title}</h1>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {complaint.overdue && <Badge tone="rose" icon="alertTriangle" pulse>Overdue</Badge>}
+                  {complaint.escalated && <Badge tone="amber" icon="alertTriangle" pulse>Escalated</Badge>}
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Badge className={statusMeta.badge} icon={statusMeta.icon}>{statusMeta.label}</Badge>
+                <Badge className={prioMeta.badge}>{prioMeta.label}</Badge>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-slate-400 uppercase font-medium tracking-wide">Category</p>
+                <p className="text-slate-700 font-medium mt-0.5">{complaint.category}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase font-medium tracking-wide">Submitted On</p>
+                <p className="text-slate-700 font-medium mt-0.5">{formatDateTime(complaint.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase font-medium tracking-wide">Last Updated</p>
+                <p className="text-slate-700 font-medium mt-0.5">{formatDateTime(complaint.updatedAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase font-medium tracking-wide">Room</p>
+                <p className="text-slate-700 font-medium mt-0.5">
+                  Block {complaint.student?.hostelBlock} / Room {complaint.student?.roomNumber}
+                </p>
+              </div>
+            </div>
+          </Card>
 
-          {/* LEFT — Main Details */}
-          <div className="md:col-span-2 space-y-5">
+          {complaint.status === 'REJECTED' && complaint.rejectionReason && (
+            <Card className="ring-rose-200 bg-rose-50/40">
+              <p className="text-sm font-bold text-rose-600 mb-1 flex items-center gap-1.5">
+                <Icon name="xCircle" size={15} /> Complaint Rejected
+              </p>
+              <p className="text-sm text-rose-500">{complaint.rejectionReason}</p>
+            </Card>
+          )}
 
-            {/* Title Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">COMPLAINT #{complaint.id}</p>
-                  <h1 className="text-xl font-bold text-gray-800">{complaint.title}</h1>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {complaint.overdue && (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
-                        🔴 OVERDUE
-                      </span>
-                    )}
-                    {complaint.escalated && (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-100 text-orange-700 animate-pulse">
-                        🚨 ESCALATED
-                      </span>
+          {complaint.status === 'CLOSED' && complaint.rating && (
+            <Card className="ring-amber-200 bg-amber-50/40">
+              <p className="text-sm font-bold text-amber-700 mb-2 flex items-center gap-1.5">
+                <Icon name="starFilled" size={15} /> Student Rating
+              </p>
+              <StarRating value={complaint.rating} readonly />
+              <p className="text-xs text-slate-500 mt-1 text-center">{complaint.rating}/5 stars</p>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader title="Description" />
+            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{complaint.description}</p>
+          </Card>
+
+          {preferredSlots.length > 0 && (
+            <Card>
+              <CardHeader title="Preferred Visit Slots" icon={<Icon name="clock" size={14} className="text-slate-400" />} />
+              <div className="flex flex-wrap gap-2">
+                {preferredSlots.map(({ day, time }, i) => (
+                  <Badge key={i} tone="indigo">{day} · {time}</Badge>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {(complaint.mediaUrls?.length > 0 || complaint.resolvedMediaUrls?.length > 0) && (
+            <Card>
+              <CardHeader title="Photos" />
+              <div className="flex gap-4 flex-wrap">
+                {complaint.mediaUrls?.map(url => (
+                  <div key={url}>
+                    <p className="text-xs text-slate-400 mb-1">Issue Photo</p>
+                    <img src={mediaUrl(url)} alt="Issue"
+                      onClick={() => window.open(mediaUrl(url), '_blank')}
+                      className="h-40 w-56 object-cover rounded-xl border border-slate-200 cursor-pointer hover:opacity-90 transition" />
+                  </div>
+                ))}
+                {complaint.resolvedMediaUrls?.map(url => (
+                  <div key={url}>
+                    <p className="text-xs text-slate-400 mb-1">Resolution Photo</p>
+                    <img src={mediaUrl(url)} alt="Resolved"
+                      onClick={() => window.open(mediaUrl(url), '_blank')}
+                      className="h-40 w-56 object-cover rounded-xl border border-slate-200 cursor-pointer hover:opacity-90 transition" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader title="Progress" />
+            <div className="flex items-center gap-0 overflow-x-auto pb-1">
+              {statusTimeline.map((step, index) => {
+                const isCompleted = currentStep >= index;
+                const isCurrent   = currentStep === index;
+                return (
+                  <div key={step} className="flex items-center flex-1 min-w-[64px]">
+                    <div className="flex flex-col items-center flex-1">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition flex-shrink-0
+                        ${isCurrent ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                        : isCompleted ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                        {isCompleted && !isCurrent ? <Icon name="checkCircle" size={14} /> : index + 1}
+                      </div>
+                      <p className={`text-[11px] mt-1.5 text-center font-medium whitespace-nowrap
+                        ${isCurrent ? 'text-indigo-600' : isCompleted ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {STATUS_META[step]?.label}
+                      </p>
+                    </div>
+                    {index < statusTimeline.length - 1 && (
+                      <div className={`h-0.5 flex-1 mb-5 min-w-[16px] ${currentStep > index ? 'bg-emerald-400' : 'bg-slate-200'}`} />
                     )}
                   </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${statusColors[complaint.status]}`}>
-                    {complaint.status}
-                  </span>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${priorityColors[complaint.priority]}`}>
-                    {complaint.priority}
-                  </span>
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          </Card>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-gray-400 uppercase font-medium">Category</p>
-                  <p className="text-gray-700 font-medium mt-0.5">{complaint.category}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 uppercase font-medium">Submitted On</p>
-                  <p className="text-gray-700 font-medium mt-0.5">{formatDate(complaint.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 uppercase font-medium">Last Updated</p>
-                  <p className="text-gray-700 font-medium mt-0.5">{formatDate(complaint.updatedAt)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 uppercase font-medium">Room</p>
-                  <p className="text-gray-700 font-medium mt-0.5">
-                    Block {complaint.student?.hostelBlock} / Room {complaint.student?.roomNumber}
-                  </p>
-                </div>
+          <CommentSection complaintId={id} complaintStatus={complaint.status} />
+
+          <Card>
+            <CardHeader title="Activity History" icon={<Icon name="clipboard" size={14} className="text-slate-400" />} />
+            <AuditTimeline complaintId={id} />
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          <Card>
+            <CardHeader title="Submitted By" />
+            <div className="flex items-center gap-3">
+              <Avatar name={complaint.student?.name} size="lg" />
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-800 text-sm truncate">{complaint.student?.name}</p>
+                <p className="text-xs text-slate-400 truncate">{complaint.student?.email}</p>
+                <p className="text-xs text-slate-400">{complaint.student?.phoneNumber}</p>
               </div>
             </div>
+          </Card>
 
-            {/* Rejection reason box */}
-            {complaint.status === 'REJECTED' && complaint.rejectionReason && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-                <p className="text-sm font-bold text-red-600 mb-1">❌ Complaint Rejected</p>
-                <p className="text-sm text-red-500">{complaint.rejectionReason}</p>
-              </div>
-            )}
-
-            {/* ✅ Rating badge — show if closed with rating */}
-            {complaint.status === 'CLOSED' && complaint.rating && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-                <p className="text-sm font-bold text-yellow-700 mb-2">⭐ Student Rating</p>
-                <StarRating value={complaint.rating} readonly />
-                <p className="text-xs text-gray-500 mt-1">{complaint.rating}/5 stars</p>
-              </div>
-            )}
-
-            {/* Description */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Description</h2>
-              <p className="text-gray-700 leading-relaxed">{complaint.description}</p>
-            </div>
-
-            {/* Photos */}
-            {(complaint.issuePhotoUrl || complaint.resolvedPhotoUrl) && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Photos</h2>
-                <div className="flex gap-4 flex-wrap">
-                  {complaint.issuePhotoUrl && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Issue Photo</p>
-                      <img
-                        src={`http://localhost:8080${complaint.issuePhotoUrl}`}
-                        alt="Issue"
-                        onClick={() => window.open(`http://localhost:8080${complaint.issuePhotoUrl}`, '_blank')}
-                        className="h-40 w-56 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition"
-                      />
-                    </div>
-                  )}
-                  {complaint.resolvedPhotoUrl && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Resolution Photo</p>
-                      <img
-                        src={`http://localhost:8080${complaint.resolvedPhotoUrl}`}
-                        alt="Resolved"
-                        onClick={() => window.open(`http://localhost:8080${complaint.resolvedPhotoUrl}`, '_blank')}
-                        className="h-40 w-56 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition"
-                      />
-                    </div>
-                  )}
+          {complaint.assignedWorker ? (
+            <Card>
+              <CardHeader title="Assigned Worker" />
+              <div className="flex items-center gap-3">
+                <Avatar name={complaint.assignedWorker?.name} size="lg" tone="bg-emerald-100 text-emerald-700" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm truncate">{complaint.assignedWorker.name}</p>
+                  <p className="text-xs text-slate-400 truncate">{complaint.assignedWorker.email}</p>
+                  <p className="text-xs text-slate-400">{complaint.assignedWorker.department}</p>
                 </div>
               </div>
+            </Card>
+          ) : (
+            <Card className="ring-amber-200 bg-amber-50/40">
+              <p className="text-sm text-amber-700 font-medium flex items-center gap-1.5">
+                <Icon name="clock" size={15} /> No worker assigned yet
+              </p>
+            </Card>
+          )}
+
+          <Card className="space-y-3">
+            <CardHeader title="Actions" />
+
+            {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
+              <div className="space-y-2">
+                <Select value={selectedWorker} onChange={e => setSelectedWorker(e.target.value)}>
+                  <option value="">Select Worker</option>
+                  {workers.map(w => <option key={w.id} value={w.id}>{w.name} {w.department ? `(${w.department})` : ''}</option>)}
+                </Select>
+                <Button className="w-full" icon="hardhat" onClick={handleAssign} loading={actionLoading}>Assign Worker</Button>
+              </div>
             )}
 
-            {/* Status Timeline */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase mb-4">Progress</h2>
-              <div className="flex items-center gap-0">
-                {statusTimeline.map((step, index) => {
-                  const isCompleted = currentStep >= index;
-                  const isCurrent   = currentStep === index;
-                  return (
-                    <div key={step} className="flex items-center flex-1">
-                      <div className="flex flex-col items-center flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition
-                          ${isCurrent   ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
-                          : isCompleted ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-400'}`}>
-                          {isCompleted && !isCurrent ? '✓' : index + 1}
-                        </div>
-                        <p className={`text-xs mt-1 text-center font-medium
-                          ${isCurrent   ? 'text-indigo-600'
-                          : isCompleted ? 'text-green-600'
-                          : 'text-gray-400'}`}>
-                          {step.replace('_', ' ')}
+            {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && ['ASSIGNED', 'IN_PROGRESS'].includes(complaint.status) && (
+              <div className="space-y-2">
+                <Button variant="subtle" className="w-full" icon="refresh" onClick={() => setShowReassignBox(r => !r)}>Reassign Worker</Button>
+                {showReassignBox && (
+                  <div className="space-y-2 pt-1">
+                    <Select value={reassignWorker} onChange={e => setReassignWorker(e.target.value)}>
+                      <option value="">Select New Worker</option>
+                      {workers.map(w => <option key={w.id} value={w.id}>{w.name} {w.department ? `(${w.department})` : ''}</option>)}
+                    </Select>
+                    <Button className="w-full" onClick={handleReassign} loading={actionLoading}>Confirm Reassign</Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
+              <div className="space-y-2">
+                <Button variant="danger" className="w-full" icon="xCircle" onClick={() => setShowRejectBox(r => !r)}>Reject Complaint</Button>
+                {showRejectBox && (
+                  <div className="space-y-2 pt-1">
+                    <Textarea rows={3} placeholder="Enter reason for rejection..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+                    <Button variant="dangerFill" className="w-full" onClick={handleReject} loading={actionLoading}>Confirm Rejection</Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {user.role === 'WORKER' && complaint.status === 'ASSIGNED' && (
+              <Button variant="warning" className="w-full" icon="wrench" onClick={handleStartWork} loading={actionLoading}>
+                Start Work
+              </Button>
+            )}
+
+            {user.role === 'WORKER' && complaint.status === 'IN_PROGRESS' && (
+              <div className="space-y-2">
+                <Button variant="success" className="w-full" icon="checkCircle" onClick={() => setShowResolveBox(r => !r)}>
+                  Mark as Resolved
+                </Button>
+                {showResolveBox && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-emerald-700">Upload proof photo (optional)</p>
+                    <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
+                      ${resolvePhotoUrl ? 'border-emerald-400 bg-emerald-100' : 'border-emerald-300 bg-white hover:bg-emerald-50'}`}>
+                      <Icon name={resolvePhotoUrl ? 'checkCircle' : uploadingPhoto ? 'loader' : 'image'} size={22}
+                        className={`text-emerald-600 flex-shrink-0 ${uploadingPhoto ? 'animate-spin' : ''}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-emerald-700">
+                          {resolvePhotoUrl ? 'Photo uploaded!' : uploadingPhoto ? 'Uploading...' : 'Choose photo'}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {resolvePhotoUrl ? resolvePhotoUrl.split('/').pop() : 'JPG, PNG up to 10MB'}
                         </p>
                       </div>
-                      {index < statusTimeline.length - 1 && (
-                        <div className={`h-0.5 flex-1 mb-5 ${currentStep > index ? 'bg-green-400' : 'bg-gray-200'}`} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ✅ Comment Section — pass status to disable when CLOSED */}
-            <CommentSection
-              complaintId={id}
-              complaintStatus={complaint.status}
-            />
-
-            {/* Audit Log */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase mb-4">
-                📋 Activity History
-              </h2>
-              <AuditTimeline complaintId={id} />
-            </div>
-
-          </div>
-
-          {/* RIGHT — People + Actions */}
-          <div className="space-y-5">
-
-            {/* Student Info */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Submitted By</h2>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-lg">
-                  {complaint.student?.name?.[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">{complaint.student?.name}</p>
-                  <p className="text-xs text-gray-400">{complaint.student?.email}</p>
-                  <p className="text-xs text-gray-400">{complaint.student?.phoneNumber}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Worker Info */}
-            {complaint.assignedWorker ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Assigned Worker</h2>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-lg">
-                    {complaint.assignedWorker?.name?.[0]?.toUpperCase()}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e.target.files[0])} />
+                    </label>
+                    <Button variant="success" className="w-full" onClick={handleMarkResolved} loading={actionLoading || uploadingPhoto}>
+                      Confirm Resolved
+                    </Button>
                   </div>
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{complaint.assignedWorker.name}</p>
-                    <p className="text-xs text-gray-400">{complaint.assignedWorker.email}</p>
-                    <p className="text-xs text-gray-400">{complaint.assignedWorker.department}</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 rounded-2xl border border-yellow-200 p-5">
-                <p className="text-sm text-yellow-700 font-medium">⏳ No worker assigned yet</p>
+                )}
               </div>
             )}
 
-            {/* Actions Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase">Actions</h2>
+            {user.role === 'STUDENT' && complaint.status === 'RESOLVED' && (
+              <Button variant="accent" className="w-full" icon="lock" onClick={() => setShowCloseModal(true)} loading={actionLoading}>
+                Close & Rate
+              </Button>
+            )}
 
-              {/* STAFF — Assign */}
-              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && complaint.status === 'CREATED' && (
-                <div className="space-y-2">
-                  <select value={selectedWorker} onChange={e => setSelectedWorker(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Select Worker</option>
-                    {workers.map(w => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} {w.department ? `(${w.department})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button onClick={handleAssign} disabled={actionLoading}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                    {actionLoading ? 'Assigning...' : '👷 Assign Worker'}
-                  </button>
-                </div>
-              )}
-
-              {/* STAFF — Reassign */}
-              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) &&
-                ['ASSIGNED', 'IN_PROGRESS'].includes(complaint.status) && (
-                <div className="space-y-2">
-                  <button onClick={() => setShowReassignBox(r => !r)}
-                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-sm font-medium transition">
-                    🔄 Reassign Worker
-                  </button>
-                  {showReassignBox && (
-                    <div className="space-y-2 pt-1">
-                      <select value={reassignWorker} onChange={e => setReassignWorker(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Select New Worker</option>
-                        {workers.map(w => (
-                          <option key={w.id} value={w.id}>
-                            {w.name} {w.department ? `(${w.department})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <button onClick={handleReassign} disabled={actionLoading}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                        {actionLoading ? 'Reassigning...' : 'Confirm Reassign'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* STAFF — Reject */}
-              {['ADMIN', 'CARETAKER', 'WARDEN'].includes(user.role) && isOpen && (
-                <div className="space-y-2">
-                  <button onClick={() => setShowRejectBox(r => !r)}
-                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium transition">
-                    ❌ Reject Complaint
-                  </button>
-                  {showRejectBox && (
-                    <div className="space-y-2 pt-1">
-                      <textarea rows={3} placeholder="Enter reason for rejection..."
-                        value={rejectReason}
-                        onChange={e => setRejectReason(e.target.value)}
-                        className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
-                      />
-                      <button onClick={handleReject} disabled={actionLoading}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                        {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ✅ WORKER — Start Work */}
-              {user.role === 'WORKER' && complaint.status === 'ASSIGNED' && (
-                <button onClick={async () => {
-                    setActionLoading(true);
-                    try {
-                      await api.put(`/complaints/${id}/status`, { status: 'IN_PROGRESS' });
-                      showToast('Status updated to IN PROGRESS', 'success');
-                      fetchComplaint();
-                    } catch (err) {
-                      showToast(err.response?.data?.message || 'Failed', 'error');
-                    } finally { setActionLoading(false); }
-                  }}
-                  disabled={actionLoading}
-                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                  {actionLoading ? 'Updating...' : '▶ Start Work'}
-                </button>
-              )}
-
-              {/* ✅ WORKER — Mark Resolved + Upload Photo */}
-              {user.role === 'WORKER' && complaint.status === 'IN_PROGRESS' && (
-                <div className="space-y-2">
-                  <button onClick={() => setShowResolveBox(r => !r)}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-medium transition">
-                    ✓ Mark as Resolved
-                  </button>
-                 {showResolveBox && (
-  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-    <p className="text-xs font-semibold text-green-700">
-      Upload proof photo (optional)
-    </p>
-
-    {/* ✅ Styled file upload button */}
-    <label className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition
-      ${resolvePhotoUrl
-        ? 'border-green-400 bg-green-100'
-        : 'border-green-300 bg-white hover:bg-green-50'}`}>
-      <span className="text-2xl">
-        {resolvePhotoUrl ? '✅' : uploadingPhoto ? '⏳' : '📷'}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-green-700">
-          {resolvePhotoUrl
-            ? 'Photo uploaded!'
-            : uploadingPhoto
-            ? 'Uploading...'
-            : 'Choose photo'}
-        </p>
-        <p className="text-xs text-gray-400 truncate">
-          {resolvePhotoUrl
-            ? resolvePhotoUrl.split('/').pop()
-            : 'JPG, PNG up to 10MB'}
-        </p>
-      </div>
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => handlePhotoUpload(e.target.files[0])}
-      />
-    </label>
-
-    <button onClick={handleMarkResolved}
-      disabled={actionLoading || uploadingPhoto}
-      className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-50">
-      {actionLoading ? 'Saving...' : 'Confirm Resolved'}
-    </button>
-  </div>
-)}
-
-                </div>
-              )}
-
-              {/* ✅ STUDENT — Close + Rate */}
-              {user.role === 'STUDENT' && complaint.status === 'RESOLVED' && (
-                <button onClick={() => setShowCloseModal(true)} disabled={actionLoading}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
-                  ✓ Close & Rate
-                </button>
-              )}
-
-              {/* No action */}
-              {['CLOSED', 'REJECTED'].includes(complaint.status) && (
-                <p className="text-sm text-gray-400 text-center py-2">
-                  {complaint.status === 'CLOSED' ? '✅ Complaint closed' : '❌ Complaint rejected'}
-                </p>
-              )}
-            </div>
-          </div>
+            {['CLOSED', 'REJECTED'].includes(complaint.status) && (
+              <p className="text-sm text-slate-400 text-center py-2 flex items-center justify-center gap-1.5">
+                <Icon name={complaint.status === 'CLOSED' ? 'lock' : 'xCircle'} size={14} />
+                {complaint.status === 'CLOSED' ? 'Complaint closed' : 'Complaint rejected'}
+              </p>
+            )}
+          </Card>
         </div>
-
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Developed by Ayush Kumar | ECE 2027 Batch
-        </p>
       </div>
-    </div>
+    </AppShell>
   );
 };
 

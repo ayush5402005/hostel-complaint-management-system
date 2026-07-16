@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -16,12 +16,18 @@ import Notifications        from './pages/Notifications';
 import ComplaintDetail      from './pages/ComplaintDetail';
 import NoticeBoardPage      from './pages/NoticeBoardPage';
 import ProfilePage          from './pages/ProfilePage';
+import StudentProfilePage   from './pages/StudentProfilePage';
 import UserManagement       from './pages/admin/UserManagement';
 import CreateUser           from './pages/admin/CreateUser';
+import StudentDirectory     from './pages/admin/StudentDirectory';
+import AnalyticsDashboard   from './pages/admin/AnalyticsDashboard';
+import WorkerRatings        from './pages/admin/WorkerRatings';
 import NoticeDetailPage     from './pages/NoticeDetailPage';
 import OtpVerificationPage  from './pages/OtpVerificationPage';
 import ForgotPasswordPage   from './pages/ForgotPasswordPage';
 import ResetPasswordPage    from './pages/ResetPasswordPage';
+
+const STAFF_ROLES = ['ADMIN', 'WARDEN', 'CARETAKER'];
 
 // ── SSE connector — lives inside all providers ────────────────────────────────
 function SseConnector() {
@@ -71,13 +77,25 @@ function AppRoutes() {
       <Route path="/notices"        element={<ProtectedRoute><NoticeBoardPage /></ProtectedRoute>} />
       <Route path="/notices/:id"    element={<ProtectedRoute><NoticeDetailPage /></ProtectedRoute>} />
       <Route path="/profile"        element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/my-profile" element={
+        <ProtectedRoute allowedRoles={['STUDENT']}><StudentProfilePage /></ProtectedRoute>
+      } />
 
       {/* Admin */}
       <Route path="/admin/users" element={
-        <ProtectedRoute allowedRoles={['ADMIN','WARDEN','CARETAKER']}><UserManagement /></ProtectedRoute>
+        <ProtectedRoute allowedRoles={STAFF_ROLES}><UserManagement /></ProtectedRoute>
       } />
       <Route path="/admin/users/new" element={
-        <ProtectedRoute allowedRoles={['ADMIN','WARDEN','CARETAKER']}><CreateUser /></ProtectedRoute>
+        <ProtectedRoute allowedRoles={STAFF_ROLES}><CreateUser /></ProtectedRoute>
+      } />
+      <Route path="/admin/students" element={
+        <ProtectedRoute allowedRoles={STAFF_ROLES}><StudentDirectory /></ProtectedRoute>
+      } />
+      <Route path="/admin/worker-ratings" element={
+        <ProtectedRoute allowedRoles={STAFF_ROLES}><WorkerRatings /></ProtectedRoute>
+      } />
+      <Route path="/analytics" element={
+        <ProtectedRoute allowedRoles={STAFF_ROLES}><AnalyticsDashboard /></ProtectedRoute>
       } />
 
       {/* Fallback */}
